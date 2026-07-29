@@ -1,0 +1,168 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
+import { LedgerService } from '../ledger/ledger.service';
+
+@Injectable()
+export class TreatmentService {
+  constructor(
+    private prisma: PrismaService,
+    private ledgerService: LedgerService
+  ) {}
+
+  async findAll() {
+    return this.prisma.treatment.findMany({
+      include: {
+        animal: {
+          select: {
+            id: true,
+            name: true,
+            tagNumber: true,
+            species: true,
+            farm: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { administrationDate: 'desc' },
+    });
+  }
+
+  async findByAnimal(animalId: string) {
+    return this.prisma.treatment.findMany({
+      where: { animalId },
+      orderBy: { administrationDate: 'desc' },
+    });
+  }
+
+  async create(dto: any) {
+    const adminDate = dto.administrationDate
+      ? new Date(dto.administrationDate)
+      : new Date();
+    const withdrawalPeriod = Number(dto.withdrawalPeriod);
+
+    // Calculate withdrawal completion date
+    const withdrawalCompletionDate = new Date(adminDate);
+    withdrawalCompletionDate.setDate(
+      withdrawalCompletionDate.getDate() + withdrawalPeriod,
+    );
+
+    // Create the treatment record
+    const treatment = await this.prisma.treatment.create({
+      data: {
+        animalId: dto.animalId,
+        drugName: dto.drugName,
+        dosage: dto.dosage,
+        administrationDate: adminDate,
+        withdrawalPeriod,
+        withdrawalCompletionDate,
+        veterinarianId: dto.veterinarianId || null,
+        veterinarianName: dto.veterinarianName || 'System Vet',
+      },
+    });
+
+    // Update the animal's MRL status
+    await this.updateAnimalMrlStatus(dto.animalId);
+
+    // Cryptographically secure the record
+    await this.ledgerService.appendToLedger('CREATE_TREATMENT', treatment.id, treatment);
+
+    return treatment;
+  }
+
+  async remove(id: string) {
+    const treatment = await this.prisma.treatment.findUnique({ where: { id } });
+    if (!treatment) throw new NotFoundException('Treatment not found');
+
+    await this.prisma.treatment.delete({ where: { id } });
+    await this.updateAnimalMrlStatus(treatment.animalId);
+    return { success: true };
+  }
+
+  // Recalculates and updates the animal's MRL status
+  async updateAnimalMrlStatus(animalId: string) {
+    const now = new Date();
+    const treatments = await this.prisma.treatment.findMany({
+      where: { animalId },
+    });
+
+    if (treatments.length === 0) {
+      await this.prisma.animal.update({
+        where: { id: animalId },
+        data: { mrlStatus: 'CLEARED', status: 'HEALTHY' },
+      });
+      return;
+    }
+
+    // Find the latest withdrawal completion date
+    let latestCompletion = new Date(0);
+    for (const t of treatments) {
+      const compDate = new Date(t.withdrawalCompletionDate);
+      if (compDate > latestCompletion) {
+        latestCompletion = compDate;
+      }
+    }
+
+    let mrlStatus = 'CLEARED';
+    let animalStatus = 'HEALTHY';
+
+    if (latestCompletion > now) {
+      animalStatus = 'UNDER_TREATMENT';
+      const diffMs = latestCompletion.getTime() - now.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays <= 3) {
+        mrlStatus = 'CLEARING_SOON';
+      } else {
+        mrlStatus = 'DO_NOT_SELL';
+      }
+    }
+
+    await this.prisma.animal.update({
+      where: { id: animalId },
+      data: { mrlStatus, status: animalStatus },
+    });
+  }
+
+  // Get active alerts for the dashboard
+  async getActiveMrlAlerts() {
+    return this.prisma.animal.findMany({
+      where: {
+        mrlStatus: {
+          in: ['DO_NOT_SELL', 'CLEARING_SOON'],
+        },
+      },
+      include: {
+        farm: { select: { name: true } },
+        treatments: {
+          orderBy: { withdrawalCompletionDate: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  // Get MRL Rules CRUD
+  async getMrlRules() {
+    return this.prisma.mrlRule.findMany();
+  }
+
+  async createMrlRule(dto: any) {
+    return this.prisma.mrlRule.upsert({
+      where: {
+        drugName_species: {
+          drugName: dto.drugName,
+          species: dto.species,
+        },
+      },
+      update: {
+        withdrawalPeriod: Number(dto.withdrawalPeriod),
+        mrlLimit: dto.mrlLimit,
+      },
+      create: {
+        drugName: dto.drugName,
+        species: dto.species,
+        withdrawalPeriod: Number(dto.withdrawalPeriod),
+        mrlLimit: dto.mrlLimit,
+      },
+    });
+  }
+}
