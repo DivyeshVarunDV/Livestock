@@ -13,6 +13,9 @@ model User {
   passwordHash String
   name         String
   role         String   // ADMIN, VETERINARIAN, FARMER
+  status       String   @default("ACTIVE") // ACTIVE, DEACTIVATED
+  phone        String?
+  department   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   farms        Farm[]
@@ -114,4 +117,64 @@ model LedgerBlock {
   dataPayload  String   
   previousHash String
   currentHash  String   
+}
+
+model Inventory {
+  id              String   @id @default(uuid())
+  medicineName    String
+  manufacturer    String
+  batchNumber     String
+  expiryDate      DateTime
+  stock           Int
+  minimumStock    Int      @default(10)
+  supplier        String
+  cost            Float
+  storageLocation String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?  // Null means broadcast / general alert
+  title     String
+  message   String
+  type      String   // VACCINATION_DUE, BOOSTER_DUE, WITHDRAWAL_ENDING, CRITICAL_ALERT, AMU_WARNING, LOW_INVENTORY
+  read      Boolean  @default(false)
+  entityId  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  userEmail String?
+  userName  String?
+  role      String?
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT, DEACTIVATE
+  entity    String   // FARM, ANIMAL, TREATMENT, USER, INVENTORY, VACCINATION, REPORT
+  entityId  String?
+  oldValue  String?
+  newValue  String?
+  ipAddress String?  @default("127.0.0.1")
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@index([role])
+}
+
+model ReportLog {
+  id          String   @id @default(uuid())
+  title       String
+  type        String   // FARM_REPORT, ANIMAL_REPORT, TREATMENT_REPORT, VACCINATION_REPORT, COMPLIANCE_REPORT, INVENTORY_REPORT
+  format      String   // PDF, EXCEL, CSV
+  generatedBy String
+  parameters  String?
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
 }

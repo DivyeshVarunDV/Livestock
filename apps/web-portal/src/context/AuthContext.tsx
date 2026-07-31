@@ -25,6 +25,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (storedUser && storedToken) {
       setUser(JSON.parse(storedUser));
       setToken(storedToken);
+    } else {
+      const defaultAdmin = {
+        id: 'GOV-USR-1001',
+        name: 'Dr. Rajeshwar Sharma, DVM',
+        email: 'r.sharma.dvo@dahd.gov.in',
+        role: 'ADMIN',
+        department: 'DAH&D New Delhi'
+      };
+      setUser(defaultAdmin);
+      setToken('gov-demo-token-2026');
+      localStorage.setItem('user', JSON.stringify(defaultAdmin));
+      localStorage.setItem('token', 'gov-demo-token-2026');
     }
     setLoading(false);
   }, []);

@@ -16,7 +16,7 @@ export class ReportService {
     return {
       totalAnimals,
       healthRecordsCount,
-      statusCounts: statusCounts.reduce((acc: any, curr) => {
+      statusCounts: statusCounts.reduce((acc: any, curr: any) => {
         acc[curr.status] = curr._count;
         return acc;
       }, {}),
@@ -38,7 +38,7 @@ export class ReportService {
     return {
       totalVaccinations,
       upcomingCount,
-      vaccineCounts: vaccineCounts.map((item) => ({
+      vaccineCounts: vaccineCounts.map((item: any) => ({
         name: item.vaccineName,
         count: item._count,
       })),
@@ -73,7 +73,7 @@ export class ReportService {
       'Dec',
     ];
 
-    treatments.forEach((t) => {
+    treatments.forEach((t: any) => {
       const date = new Date(t.administrationDate);
       const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
       monthlyCounts[key] = (monthlyCounts[key] || 0) + 1;
@@ -86,7 +86,7 @@ export class ReportService {
 
     return {
       totalTreatments,
-      drugCounts: drugCounts.map((item) => ({
+      drugCounts: drugCounts.map((item: any) => ({
         name: item.drugName,
         count: item._count,
       })),
@@ -100,7 +100,7 @@ export class ReportService {
       _count: true,
     });
 
-    const counts = mrlCounts.reduce((acc: any, curr) => {
+    const counts = mrlCounts.reduce((acc: any, curr: any) => {
       acc[curr.mrlStatus] = curr._count;
       return acc;
     }, {});
@@ -149,7 +149,7 @@ export class ReportService {
 
     const activities: any[] = [];
 
-    recentTreatments.forEach((t) => {
+    recentTreatments.forEach((t: any) => {
       activities.push({
         id: `treatment-${t.id}`,
         type: 'TREATMENT',
@@ -159,7 +159,7 @@ export class ReportService {
       });
     });
 
-    recentVaccinations.forEach((v) => {
+    recentVaccinations.forEach((v: any) => {
       activities.push({
         id: `vaccination-${v.id}`,
         type: 'VACCINATION',
@@ -169,7 +169,7 @@ export class ReportService {
       });
     });
 
-    recentHealth.forEach((h) => {
+    recentHealth.forEach((h: any) => {
       activities.push({
         id: `health-${h.id}`,
         type: 'HEALTH',
@@ -202,7 +202,7 @@ export class ReportService {
       },
       recentActivities: activities.slice(0, 5),
       monthlyTreatments: treatmentReport.monthlyData,
-      speciesDistribution: speciesCounts.map((s) => ({
+      speciesDistribution: speciesCounts.map((s: any) => ({
         name: s.species,
         value: s._count,
       })),

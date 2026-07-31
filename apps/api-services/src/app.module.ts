@@ -8,6 +8,10 @@ import { VaccinationModule } from './vaccination/vaccination.module';
 import { TreatmentModule } from './treatment/treatment.module';
 import { ReportModule } from './report/report.module';
 import { LedgerModule } from './ledger/ledger.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { NotificationModule } from './notification/notification.module';
+import { AuditModule } from './audit/audit.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { LedgerModule } from './ledger/ledger.module';
     TreatmentModule,
     ReportModule,
     LedgerModule,
+    InventoryModule,
+    NotificationModule,
+    AuditModule,
+    UserModule,
   ],
 })
 export class AppModule {}

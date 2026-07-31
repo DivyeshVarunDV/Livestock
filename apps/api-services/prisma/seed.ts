@@ -157,6 +157,22 @@ async function main() {
     },
   });
 
+  // Animal 5: Healthy Goat
+  const goat1 = await prisma.animal.create({
+    data: {
+      tagNumber: 'IND-208-E',
+      name: 'Sheru',
+      species: 'GOAT',
+      breed: 'Beetal',
+      gender: 'MALE',
+      age: 14,
+      weight: 45,
+      status: 'HEALTHY',
+      mrlStatus: 'CLEARED',
+      farmId: farm1.id,
+    },
+  });
+
   console.log('Seeding health records...');
   await prisma.healthRecord.createMany({
     data: [
