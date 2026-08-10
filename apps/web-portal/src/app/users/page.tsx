@@ -97,7 +97,7 @@ export default function UsersPage() {
     loadUsers();
   }, [roleFilter, statusFilter]);
 
-  const loadUsers = async () => {
+  async function loadUsers() {
     try {
       const q = new URLSearchParams();
       if (roleFilter !== 'ALL') q.append('role', roleFilter);

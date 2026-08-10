@@ -18,7 +18,7 @@ export default function NotificationsPage() {
     loadNotifications();
   }, []);
 
-  const loadNotifications = async () => {
+  async function loadNotifications() {
     setLoading(true);
     try {
       const data = await apiFetch('/notifications');

@@ -4,13 +4,14 @@ import { useAuth } from '@/context/AuthContext';
 import { usePathname, useRouter } from 'next/navigation';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user && pathname !== '/login') {
@@ -20,11 +21,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <i className="fa fa-circle-o-notch fa-spin" style={{ fontSize: '2.2rem', color: '#2E7D32', marginBottom: '10px' }}></i>
-          <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700 }}>AgriShield Enterprise</h2>
-          <p style={{ color: '#6B7280', fontSize: '0.8rem', marginTop: '4px' }}>Digital Farm Management &amp; MRL Compliance Platform...</p>
+      <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
+        <div className="text-center animate-pulse">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-gray-900 text-lg font-bold">LivestoCare</h2>
+          <p className="text-gray-500 text-sm mt-1">Digital Farm Management &amp; MRL Compliance</p>
         </div>
       </div>
     );
@@ -37,64 +38,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="app-container">
-      <Sidebar />
-      <div className="main-wrapper">
-        <Navbar />
-        <main className="main-content">
-          <div className="dashboard-content">
+    <div className="flex h-screen w-full bg-[#F8FAFC] overflow-hidden">
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      
+      <div className="flex flex-col flex-1 w-full min-w-0 overflow-hidden">
+        <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1 w-full">
             {children}
           </div>
 
-          {/* Official AgriShield Enterprise Thin Professional Footer */}
-          <footer
-            className="gov-footer"
-            style={{
-              background: '#F9FAFB',
-              borderTop: '1px solid #E5E7EB',
-              padding: '14px 24px',
-              fontSize: '0.76rem',
-              color: '#6B7280',
-              marginTop: 'auto',
-            }}
-          >
-            <div className="gov-footer-left">
-              <div
-                style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '6px',
-                  background: '#F3F4F6',
-                  border: '1px solid #E5E7EB',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#4B5563',
-                  fontSize: '0.9rem',
-                }}
-                title="Government of India Emblem"
-              >
-                <i className="fa fa-institution"></i>
+          {/* Minimalist Footer */}
+          <footer className="w-full bg-white border-t border-gray-200 py-4 px-6 mt-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-3">
+              <div>
+                &copy; 2026 LivestoCare
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.8rem' }}>
-                  AgriShield Enterprise
-                </span>
-                <span style={{ color: '#D1D5DB' }}>•</span>
-                <span style={{ color: '#6B7280', fontSize: '0.76rem' }}>
-                  Digital Farm Management &amp; MRL Compliance Platform
-                </span>
+              <div className="flex items-center gap-4">
+                <Link href="/privacy" className="hover:text-green-700 transition-colors">Privacy</Link>
+                <Link href="/terms" className="hover:text-green-700 transition-colors">Terms</Link>
+                <Link href="/support" className="hover:text-green-700 transition-colors">Support</Link>
               </div>
-            </div>
-
-            <div className="gov-footer-links" style={{ fontSize: '0.76rem' }}>
-              <Link href="/reports">Privacy Policy</Link>
-              <span>•</span>
-              <Link href="/reports">Terms of Service</Link>
-              <span>•</span>
-              <Link href="/inventory">Support</Link>
-              <span>•</span>
-              <span style={{ fontWeight: 700, color: '#4B5563' }}>Version 2.1</span>
             </div>
           </footer>
         </main>

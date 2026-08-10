@@ -79,7 +79,7 @@ export default function LoginPage() {
           }}>
             <i className="fa fa-leaf"></i>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Welcome to AgriShield</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Welcome to LivestoCare</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
             {isRegister ? 'Create your management account' : 'Sign in to access your dashboard'}
           </p>

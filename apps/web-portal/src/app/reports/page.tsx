@@ -19,7 +19,7 @@ export default function Reports() {
     loadReportData();
   }, [activeReport]);
 
-  const loadReportData = async () => {
+  async function loadReportData() {
     setLoading(true);
     try {
       let endpoint = '/farms';
@@ -299,7 +299,7 @@ export default function Reports() {
       <Modal
         isOpen={printModal}
         onClose={() => setPrintModal(false)}
-        title="AgriShield Enterprise Regulatory Compliance Report (PDF Preview)"
+        title="LivestoCare Regulatory Compliance Report (PDF Preview)"
         icon="fa-file-pdf-o"
         maxWidth="800px"
       >
@@ -307,7 +307,7 @@ export default function Reports() {
           <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                AGRISHIELD ENTERPRISE REGISTRY REPORT
+                LIVESTOCARE REGISTRY REPORT
               </h2>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Report Type: <strong>{activeReport.toUpperCase()}</strong> &bull; Period: {startDate} to {endDate}
