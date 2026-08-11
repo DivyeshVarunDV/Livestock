@@ -11,11 +11,9 @@ export default function MapsPage() {
   const [directionsMode, setDirectionsMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPins();
-  }, []);
 
-  const loadPins = async () => {
+
+  async function loadPins() {
     setLoading(true);
     try {
       const data = await apiFetch('/farms');
@@ -26,7 +24,11 @@ export default function MapsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadPins();
+  }, []);
 
   const defaultPins = [
     {

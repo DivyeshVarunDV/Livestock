@@ -1,7 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api';
 import Link from 'next/link';
+import { calculateOverallWithdrawal } from '@/lib/withdrawalEngine';
+import { calculateMRLCompliance } from '@/lib/mrlEngine';
+import { calculateAMU } from '@/lib/amuEngine';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip,
   PieChart, Pie, Cell, Legend
@@ -11,41 +15,218 @@ import {
   TrendingUp, TrendingDown, Activity, Plus, Pill, ClipboardList
 } from 'lucide-react';
 
-const amuData = [
-  { month: 'Mar', amu: 450, treatments: 120 },
-  { month: 'Apr', amu: 380, treatments: 150 },
-  { month: 'May', amu: 360, treatments: 180 },
-  { month: 'Jun', amu: 340, treatments: 210 },
-  { month: 'Jul', amu: 312, treatments: 250 },
-  { month: 'Aug', amu: 290, treatments: 310 },
-];
 
-const livestockData = [
-  { name: 'Cattle', value: 1840, color: '#14532D' },
-  { name: 'Buffalo', value: 1250, color: '#2563EB' },
-  { name: 'Goat', value: 680, color: '#F59E0B' },
-  { name: 'Sheep', value: 410, color: '#8B5CF6' },
-  { name: 'Pig', value: 210, color: '#EF4444' },
-  { name: 'Poultry', value: 172, color: '#06B6D4' },
-];
-
-const recentTreatments = [
-  { id: '#TAG-0042', medicine: 'Oxytetracycline', vet: 'Dr. R. Kumar', date: '10 Aug', status: 'Active' },
-  { id: '#TAG-0018', medicine: 'Amoxicillin', vet: 'Dr. A. Sharma', date: '09 Aug', status: 'Active' },
-  { id: '#TAG-0091', medicine: 'Enrofloxacin', vet: 'Dr. V. Singh', date: '08 Aug', status: 'Active' },
-  { id: '#TAG-0112', medicine: 'Ivermectin', vet: 'Dr. R. Kumar', date: '05 Aug', status: 'Active' },
-  { id: '#TAG-0065', medicine: 'Meloxicam', vet: 'Dr. A. Sharma', date: '02 Aug', status: 'Completed' },
-];
-
-const withdrawalAlerts = [
-  { id: '#TAG-0065', drug: 'Meloxicam', days: '2 Days', priority: 'High' },
-  { id: '#TAG-0042', drug: 'Oxytetracycline', days: '7 Days', priority: 'High' },
-  { id: '#TAG-0018', drug: 'Amoxicillin', days: '5 Days', priority: 'Medium' },
-  { id: '#TAG-0091', drug: 'Enrofloxacin', days: '8 Days', priority: 'Medium' },
-  { id: '#TAG-0134', drug: 'Tylosin', days: '10 Days', priority: 'Low' },
-];
 
 export default function Dashboard() {
+
+  const [loading, setLoading] = useState(true);
+  
+  const [amuFilters, setAmuFilters] = useState({
+    period: 'All Time',
+    farm: 'All Farms',
+    drug: 'All Drugs',
+    species: 'All Species'
+  });
+
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      totalFarms: 0,
+      totalAnimals: 0,
+      underTreatment: 0,
+      vaccinationsDue: 0,
+      activeMrlAlerts: 0,
+      veterinaryPrescriptions: 0
+    },
+    rawTreatments: [] as any[],
+    livestockData: [] as any[],
+    recentTreatments: [] as any[],
+    withdrawalAlerts: [] as any[],
+    mrlCompliance: { total: 0, compliant: 0, nonCompliant: 0, pending: 0, percentage: 100 }
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [dashboardStats, compliance, treatments, alerts, animals] = await Promise.all([
+          apiFetch('/reports/dashboard'),
+          apiFetch('/reports/compliance'),
+          apiFetch('/treatments'),
+          apiFetch('/treatments/alerts'),
+          apiFetch('/animals')
+        ]);
+
+        const dashboardTreatments = Array.isArray(treatments) ? treatments : [];
+
+        const colors: Record<string, string> = {
+          'CATTLE': '#14532D',
+          'BUFFALO': '#2563EB',
+          'GOAT': '#F59E0B',
+          'SHEEP': '#8B5CF6',
+          'PIG': '#EF4444',
+          'POULTRY': '#06B6D4'
+        };
+        const livestockData = (dashboardStats.speciesDistribution || []).map((s: any) => ({
+          name: s.name.charAt(0).toUpperCase() + s.name.slice(1).toLowerCase(),
+          value: s.value,
+          color: colors[s.name.toUpperCase()] || '#8884d8'
+        }));
+
+        let mrlCompliant = 0;
+        let mrlNonCompliant = 0;
+        let mrlPending = 0;
+
+        (animals || []).forEach((a: any) => {
+          let measuredResidue: number | null = 5;
+          let drug = 'Various';
+          let withdrawalStatus: 'ACTIVE' | 'DUE SOON' | 'CLEARED' = 'CLEARED';
+          
+          if (a.mrlStatus === 'DO_NOT_SELL') {
+            measuredResidue = 150;
+            drug = 'Penicillin G';
+            withdrawalStatus = 'ACTIVE';
+          } else if (a.mrlStatus === 'CLEARING_SOON') {
+            measuredResidue = null;
+            drug = 'Oxytetracycline';
+          }
+          
+          const decision = calculateMRLCompliance({
+            animalId: a.id,
+            drug,
+            measuredResidue,
+            mrlLimit: 100,
+            testDate: new Date().toISOString(),
+            withdrawalStatus,
+            withdrawalDaysRemaining: 4
+          });
+
+          if (decision.status === 'COMPLIANT') mrlCompliant++;
+          else if (decision.status === 'NON-COMPLIANT' || decision.status === 'DO_NOT_SELL') mrlNonCompliant++;
+          else if (decision.status === 'PENDING') mrlPending++;
+        });
+
+        const mrlTotal = mrlCompliant + mrlNonCompliant + mrlPending;
+        const mrlPercentage = mrlTotal === 0 ? 100 : Math.round((mrlCompliant / mrlTotal) * 100);
+
+        const recentT = (treatments || []).slice(0, 5).map((t: any) => ({
+          id: t.animal?.tagNumber || t.animalId.substring(0, 8),
+          animalId: t.animalId,
+          medicine: t.drugName,
+          vet: t.veterinarianName,
+          date: new Date(t.administrationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          status: new Date(t.withdrawalCompletionDate) > new Date() ? 'Active' : 'Completed'
+        }));
+
+        const wAlerts = (alerts || []).map((a: any) => {
+          const mappedTreatments = (a.treatments || []).map((t: any) => ({
+            animalId: a.id,
+            treatmentDate: t.administrationDate,
+            medicine: t.drugName,
+            withdrawalPeriodDays: t.withdrawalPeriod,
+          }));
+
+          const calc = calculateOverallWithdrawal(mappedTreatments);
+          const daysLeft = calc.daysRemaining;
+          
+          return {
+            id: a.tagNumber,
+            animalId: a.id,
+            drug: mappedTreatments[0]?.medicine || 'Unknown',
+            days: `${daysLeft} Days`,
+            priority: daysLeft <= 3 ? 'High' : (daysLeft <= 7 ? 'Medium' : 'Low')
+          };
+        });
+
+        setDashboardData({
+          stats: {
+            ...dashboardStats.stats,
+            veterinaryPrescriptions: 0
+          },
+          rawTreatments: dashboardTreatments,
+          livestockData,
+          recentTreatments: recentT,
+          withdrawalAlerts: wAlerts,
+          mrlCompliance: {
+            total: mrlTotal,
+            compliant: mrlCompliant,
+            nonCompliant: mrlNonCompliant,
+            pending: mrlPending,
+            percentage: mrlPercentage
+          }
+        });
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const amuChartData = React.useMemo(() => {
+    let filtered = dashboardData.rawTreatments;
+    
+    if (amuFilters.farm !== 'All Farms') {
+      filtered = filtered.filter(t => (t.animal?.farm?.name || t.animal?.farmId) === amuFilters.farm);
+    }
+    if (amuFilters.drug !== 'All Drugs') {
+      filtered = filtered.filter(t => t.drugName === amuFilters.drug);
+    }
+    if (amuFilters.species !== 'All Species') {
+      filtered = filtered.filter(t => (t.animal?.species || 'Unknown').toUpperCase() === amuFilters.species.toUpperCase());
+    }
+    if (amuFilters.period !== 'All Time') {
+      const now = new Date();
+      let limitDate = new Date();
+      if (amuFilters.period === 'Last 30 Days') limitDate.setDate(now.getDate() - 30);
+      else if (amuFilters.period === 'Last 6 Months') limitDate.setMonth(now.getMonth() - 6);
+      else if (amuFilters.period === 'Last Year') limitDate.setFullYear(now.getFullYear() - 1);
+      
+      filtered = filtered.filter(t => new Date(t.administrationDate) >= limitDate);
+    }
+    
+    const analytics = calculateAMU(filtered);
+    
+    // Convert byMonth to array and sort by month
+    return Object.entries(analytics.byMonth)
+      .map(([month, data]) => ({
+        month,
+        amu: data.doseUnits,
+        treatments: data.treatments
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+      
+  }, [dashboardData.rawTreatments, amuFilters]);
+
+  const filterOptions = React.useMemo(() => {
+    const farms = new Set<string>();
+    const drugs = new Set<string>();
+    const species = new Set<string>();
+    
+    dashboardData.rawTreatments.forEach(t => {
+      if (t.animal?.farm?.name || t.animal?.farmId) farms.add(t.animal?.farm?.name || t.animal?.farmId);
+      if (t.drugName) drugs.add(t.drugName);
+      if (t.animal?.species) species.add((t.animal.species).toUpperCase());
+    });
+    
+    return {
+      farms: ['All Farms', ...Array.from(farms)],
+      drugs: ['All Drugs', ...Array.from(drugs)],
+      species: ['All Species', ...Array.from(species)]
+    };
+  }, [dashboardData.rawTreatments]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
+        <div className="text-center animate-pulse">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-gray-900 text-lg font-bold">LivestoCare</h2>
+          <p className="text-gray-500 text-sm mt-1">Loading Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Dashboard Header */}
@@ -57,14 +238,14 @@ export default function Dashboard() {
       {/* KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
-          { label: 'Registered Farms', value: '128', icon: Tractor, trend: '+4.2%', up: true, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Registered Animals', value: '4,562', icon: PawPrint, trend: '+12.8%', up: true, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Active Treatments', value: '312', icon: Syringe, trend: '-3.5%', up: false, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'Animals Under Withdrawal', value: '23', icon: AlertTriangle, trend: '+2 today', up: false, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'MRL Compliance', value: '95%', icon: ShieldCheck, trend: '+1.5%', up: true, color: 'text-green-600', bg: 'bg-green-50' },
-          { label: 'Veterinary Prescriptions', value: '256', icon: FileText, trend: '+18.4%', up: true, color: 'text-purple-600', bg: 'bg-purple-50' }
+          { label: 'Registered Farms', value: dashboardData.stats.totalFarms.toString(), icon: Tractor, trend: 'Total', up: true, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/farms' },
+          { label: 'Registered Animals', value: dashboardData.stats.totalAnimals.toString(), icon: PawPrint, trend: 'Total', up: true, color: 'text-blue-600', bg: 'bg-blue-50', link: '/animals' },
+          { label: 'Active Treatments', value: dashboardData.stats.underTreatment.toString(), icon: Syringe, trend: 'Currently Active', up: false, color: 'text-indigo-600', bg: 'bg-indigo-50', link: '/treatments' },
+          { label: 'Animals Under Withdrawal', value: dashboardData.stats.activeMrlAlerts.toString(), icon: AlertTriangle, trend: 'Active Alerts', up: false, color: 'text-amber-600', bg: 'bg-amber-50', link: '/withdrawal' },
+          { label: 'MRL Compliance', value: `${dashboardData.mrlCompliance.percentage}%`, icon: ShieldCheck, trend: 'Overall', up: true, color: 'text-green-600', bg: 'bg-green-50', link: '/reports' },
+          { label: 'Veterinary Prescriptions', value: dashboardData.stats.veterinaryPrescriptions.toString(), icon: FileText, trend: 'Total', up: true, color: 'text-purple-600', bg: 'bg-purple-50', link: '/reports' }
         ].map((kpi, idx) => (
-          <div key={idx} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col justify-between">
+          <Link href={kpi.link || "#"} key={idx} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col justify-between hover:border-green-300 transition-colors cursor-pointer block">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{kpi.label}</span>
               <div className={`p-1.5 rounded-lg ${kpi.bg} ${kpi.color}`}>
@@ -78,21 +259,34 @@ export default function Dashboard() {
                 <span>{kpi.trend}</span>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* Main Analytics Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Chart 1: Antimicrobial Usage Trend */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm xl:col-span-1 lg:col-span-1">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm xl:col-span-1 lg:col-span-1 flex flex-col">
           <div className="mb-4">
-            <h2 className="text-sm font-bold text-gray-900">Antimicrobial Usage Trend</h2>
-            <p className="text-xs text-gray-500">Last 6 Months</p>
+            <h2 className="text-sm font-bold text-gray-900 mb-2">Antimicrobial Usage Trend</h2>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.period} onChange={(e) => setAmuFilters({...amuFilters, period: e.target.value})}>
+                {['All Time', 'Last 30 Days', 'Last 6 Months', 'Last Year'].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.farm} onChange={(e) => setAmuFilters({...amuFilters, farm: e.target.value})}>
+                {filterOptions.farms.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.drug} onChange={(e) => setAmuFilters({...amuFilters, drug: e.target.value})}>
+                {filterOptions.drugs.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.species} onChange={(e) => setAmuFilters({...amuFilters, species: e.target.value})}>
+                {filterOptions.species.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="h-56 w-full">
+          <div className="h-56 w-full mt-auto">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={amuData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+              <AreaChart data={amuChartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorAmu" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#15803D" stopOpacity={0.3}/>
@@ -115,7 +309,7 @@ export default function Dashboard() {
                   iconType="circle" 
                   wrapperStyle={{ fontSize: '11px', color: '#4B5563' }} 
                 />
-                <Area type="monotone" dataKey="amu" name="AMU Units" stroke="#15803D" strokeWidth={3} fillOpacity={1} fill="url(#colorAmu)" activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }} dot={{ r: 4, fill: '#15803D', strokeWidth: 2, stroke: '#fff' }} />
+                <Area type="monotone" dataKey="amu" name="Total Dose Units" stroke="#15803D" strokeWidth={3} fillOpacity={1} fill="url(#colorAmu)" activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }} dot={{ r: 4, fill: '#15803D', strokeWidth: 2, stroke: '#fff' }} />
                 <Area type="monotone" dataKey="treatments" name="Treatments Recorded" stroke="#2563EB" strokeWidth={3} fillOpacity={1} fill="url(#colorTreatments)" activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }} dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#fff' }} />
               </AreaChart>
             </ResponsiveContainer>
@@ -131,8 +325,9 @@ export default function Dashboard() {
           <div className="h-56 w-full relative flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
+                <Tooltip contentStyle={{ borderRadius: "8px", fontSize: "12px" }} formatter={(value: any, name: any) => [`${value} (${Math.round((value as number) / dashboardData.stats.totalAnimals * 100)}%)`, name]} />
                 <Pie
-                  data={livestockData}
+                  data={dashboardData.livestockData}
                   cx="50%"
                   cy="45%"
                   innerRadius={60}
@@ -141,7 +336,7 @@ export default function Dashboard() {
                   dataKey="value"
                   stroke="none"
                 >
-                  {livestockData.map((entry, index) => (
+                  {dashboardData.livestockData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -154,7 +349,7 @@ export default function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none flex flex-col items-center">
-              <div className="text-lg font-bold text-gray-900 leading-none">4,562</div>
+              <div className="text-lg font-bold text-gray-900 leading-none">{dashboardData.stats.totalAnimals}</div>
               <div className="text-[10px] text-gray-500 font-medium uppercase mt-1">Total</div>
             </div>
           </div>
@@ -171,10 +366,10 @@ export default function Dashboard() {
             <div className="relative w-32 h-32 mb-6">
               <svg className="w-full h-full" viewBox="0 0 100 100">
                 <circle className="text-gray-100 stroke-current" strokeWidth="8" cx="50" cy="50" r="40" fill="transparent"></circle>
-                <circle className="text-green-600 progress-ring stroke-current" strokeWidth="8" strokeLinecap="round" cx="50" cy="50" r="40" fill="transparent" strokeDasharray="251.2" strokeDashoffset="12.56" transform="rotate(-90 50 50)"></circle>
+                <circle className="text-green-600 progress-ring stroke-current" strokeWidth="8" strokeLinecap="round" cx="50" cy="50" r="40" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 * ((100 - dashboardData.mrlCompliance.percentage) / 100)} transform="rotate(-90 50 50)"></circle>
               </svg>
               <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-gray-900">95%</span>
+                <span className="text-2xl font-bold text-gray-900">{dashboardData.mrlCompliance.percentage}%</span>
                 <span className="text-[10px] uppercase font-bold text-green-600">Compliant</span>
               </div>
             </div>
@@ -182,15 +377,15 @@ export default function Dashboard() {
             <div className="flex w-full justify-between px-6 text-xs font-medium text-gray-600 border-t border-gray-100 pt-4">
               <div className="flex flex-col items-center">
                 <span className="text-gray-400 mb-1">Compliant</span>
-                <span className="text-gray-900 font-bold">123</span>
+                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.compliant}</span>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-gray-400 mb-1">Non-Compliant</span>
-                <span className="text-gray-900 font-bold">3</span>
+                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.nonCompliant}</span>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-gray-400 mb-1">Pending</span>
-                <span className="text-gray-900 font-bold">2</span>
+                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.pending}</span>
               </div>
             </div>
           </div>
@@ -217,9 +412,9 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {recentTreatments.map((t, i) => (
+                {dashboardData.recentTreatments.map((t, i) => (
                   <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{t.id}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900"><Link href={`/animals?id=${t.animalId}`} className="hover:text-green-700 hover:underline">{t.id}</Link></td>
                     <td className="px-4 py-3">{t.medicine}</td>
                     <td className="px-4 py-3">{t.vet}</td>
                     <td className="px-4 py-3">{t.date}</td>
@@ -256,9 +451,9 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {withdrawalAlerts.map((w, i) => (
+                {dashboardData.withdrawalAlerts.map((w, i) => (
                   <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{w.id}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900"><Link href={`/animals?id=${w.animalId}`} className="hover:text-green-700 hover:underline">{w.id}</Link></td>
                     <td className="px-4 py-3">{w.drug}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{w.days}</td>
                     <td className="px-4 py-3 text-right">

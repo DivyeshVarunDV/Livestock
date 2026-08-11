@@ -10,11 +10,9 @@ export default function AuditPage() {
   const [entityFilter, setEntityFilter] = useState('ALL');
   const [actionFilter, setActionFilter] = useState('ALL');
 
-  useEffect(() => {
-    loadAuditLogs();
-  }, [roleFilter, entityFilter, actionFilter]);
 
-  const loadAuditLogs = async () => {
+
+  async function loadAuditLogs() {
     setLoading(true);
     try {
       const q = new URLSearchParams();
@@ -96,7 +94,11 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadAuditLogs();
+  }, [roleFilter, entityFilter, actionFilter]);
 
   const handleExportCSV = () => {
     const headers = [
@@ -162,7 +164,7 @@ export default function AuditPage() {
             Tamper-evident record of user actions, compliance modifications, entity changes, and IP addresses
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={loadAuditLogs}

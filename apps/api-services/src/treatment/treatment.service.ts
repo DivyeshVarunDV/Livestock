@@ -60,7 +60,31 @@ export class TreatmentService {
     });
 
     // Update the animal's MRL status
-    await this.updateAnimalMrlStatus(dto.animalId);
+    await this.updateAnimalMrlStatus(dto.animalId, dto.veterinarianName);
+
+    // Audit Log: Treatment Created
+    await this.prisma.auditLog.create({
+      data: {
+        userName: dto.veterinarianName || 'System Auto',
+        action: 'Treatment Created',
+        entity: 'TREATMENT',
+        entityId: treatment.id,
+        newValue: JSON.stringify({ drug: dto.drugName, dosage: dto.dosage })
+      }
+    });
+
+    if (withdrawalPeriod > 0) {
+      // Audit Log: Withdrawal Started
+      await this.prisma.auditLog.create({
+        data: {
+          userName: dto.veterinarianName || 'System Auto',
+          action: 'Withdrawal Started',
+          entity: 'TREATMENT',
+          entityId: treatment.id,
+          newValue: JSON.stringify({ drug: dto.drugName, duration: `${withdrawalPeriod} days` })
+        }
+      });
+    }
 
     // Cryptographically secure the record
     await this.ledgerService.appendToLedger('CREATE_TREATMENT', treatment.id, treatment);
@@ -73,13 +97,18 @@ export class TreatmentService {
     if (!treatment) throw new NotFoundException('Treatment not found');
 
     await this.prisma.treatment.delete({ where: { id } });
-    await this.updateAnimalMrlStatus(treatment.animalId);
+    await this.updateAnimalMrlStatus(treatment.animalId, 'System Auto');
     return { success: true };
   }
 
   // Recalculates and updates the animal's MRL status
-  async updateAnimalMrlStatus(animalId: string) {
+  async updateAnimalMrlStatus(animalId: string, userName: string = 'System Auto') {
     const now = new Date();
+    const animal = await this.prisma.animal.findUnique({ where: { id: animalId } });
+    if (!animal) return;
+
+    const previousMrlStatus = animal.mrlStatus;
+
     const treatments = await this.prisma.treatment.findMany({
       where: { animalId },
     });
@@ -89,6 +118,18 @@ export class TreatmentService {
         where: { id: animalId },
         data: { mrlStatus: 'CLEARED', status: 'HEALTHY' },
       });
+      if (previousMrlStatus !== 'CLEARED') {
+        await this.prisma.auditLog.create({
+          data: {
+            userName,
+            action: 'Withdrawal Cleared',
+            entity: 'ANIMAL',
+            entityId: animalId,
+            oldValue: previousMrlStatus,
+            newValue: 'CLEARED'
+          }
+        });
+      }
       return;
     }
 
@@ -119,6 +160,32 @@ export class TreatmentService {
       where: { id: animalId },
       data: { mrlStatus, status: animalStatus },
     });
+
+    if (previousMrlStatus !== mrlStatus) {
+      if (mrlStatus === 'CLEARED') {
+        await this.prisma.auditLog.create({
+          data: {
+            userName,
+            action: 'Withdrawal Cleared',
+            entity: 'ANIMAL',
+            entityId: animalId,
+            oldValue: previousMrlStatus,
+            newValue: mrlStatus
+          }
+        });
+      } else {
+        await this.prisma.auditLog.create({
+          data: {
+            userName,
+            action: 'MRL Status Changed',
+            entity: 'ANIMAL',
+            entityId: animalId,
+            oldValue: previousMrlStatus,
+            newValue: mrlStatus
+          }
+        });
+      }
+    }
   }
 
   // Get active alerts for the dashboard

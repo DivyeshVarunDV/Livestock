@@ -24,6 +24,7 @@ export class AnimalService {
         healthRecords: { orderBy: { date: 'desc' } },
         vaccinations: { orderBy: { vaccinationDate: 'desc' } },
         treatments: { orderBy: { administrationDate: 'desc' } },
+        prescriptions: { orderBy: { prescriptionDate: 'desc' } },
       },
     });
     if (!animal) throw new NotFoundException('Animal not found');

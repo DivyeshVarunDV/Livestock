@@ -127,6 +127,7 @@ export class ReportService {
     const activeMrlAlerts = await this.prisma.animal.count({
       where: { mrlStatus: { in: ['DO_NOT_SELL', 'CLEARING_SOON'] } },
     });
+    const veterinaryPrescriptions = await this.prisma.prescription.count();
 
     // Recent activities (we can merge recent treatments, vaccinations, health records, etc.)
     const recentTreatments = await this.prisma.treatment.findMany({
@@ -199,6 +200,7 @@ export class ReportService {
         underTreatment,
         vaccinationsDue,
         activeMrlAlerts,
+        veterinaryPrescriptions,
       },
       recentActivities: activities.slice(0, 5),
       monthlyTreatments: treatmentReport.monthlyData,

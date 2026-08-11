@@ -51,6 +51,7 @@ model Animal {
   healthRecords HealthRecord[]
   vaccinations  Vaccination[]
   treatments    Treatment[]
+  prescriptions Prescription[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -95,6 +96,22 @@ model Treatment {
   veterinarianName         String
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
+}
+
+model Prescription {
+  id               String   @id @default(uuid())
+  animalId         String
+  animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  medicine         String
+  veterinarianId   String?
+  veterinarianName String
+  dosage           String
+  duration         Int
+  instructions     String
+  prescriptionDate DateTime
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model MrlRule {

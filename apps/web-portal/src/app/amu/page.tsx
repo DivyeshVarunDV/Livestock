@@ -273,7 +273,7 @@ export default function AMUTracking() {
               onChange={(e) => setFormData({ ...formData, dosage: e.target.value })} 
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-[16px]">
             <div className="form-group">
               <label className="form-label" htmlFor="admin-date-amu">Administration Date</label>
               <input 

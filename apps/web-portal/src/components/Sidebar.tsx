@@ -1,5 +1,9 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { apiFetch } from '@/lib/api';
 import { 
   LayoutDashboard, 
   Tractor, 
@@ -17,6 +21,53 @@ import {
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
   const pathname = usePathname();
+
+  const [attentionData, setAttentionData] = useState({
+    restrictedAnimals: 0,
+    withdrawalThisWeek: 0,
+    mrlTestsPending: 0,
+    treatmentsThisWeek: 0,
+    clearedAnimals: 0
+  });
+
+
+  useEffect(() => {
+    const fetchAttentionData = async () => {
+      try {
+        const [compliance, treatments, alerts] = await Promise.all([
+          apiFetch('/reports/compliance'),
+          apiFetch('/treatments'),
+          apiFetch('/treatments/alerts')
+        ]);
+
+        const withdrawalThisWeek = (alerts || []).filter((a: any) => {
+          if (!a.treatments?.[0]) return false;
+          const diff = new Date(a.treatments[0].withdrawalCompletionDate).getTime() - new Date().getTime();
+          const daysLeft = Math.ceil(diff / (1000 * 3600 * 24));
+          return daysLeft >= 0 && daysLeft <= 7;
+        }).length;
+
+        const treatmentsThisWeek = (treatments || []).filter((t: any) => {
+          if (!t.administrationDate) return false;
+          const diff = new Date().getTime() - new Date(t.administrationDate).getTime();
+          const daysAgo = Math.ceil(diff / (1000 * 3600 * 24));
+          return daysAgo >= 0 && daysAgo <= 7;
+        }).length;
+
+        setAttentionData({
+          restrictedAnimals: compliance.doNotSell || 0,
+          withdrawalThisWeek,
+          mrlTestsPending: compliance.clearingSoon || 0,
+          treatmentsThisWeek,
+          clearedAnimals: compliance.cleared || 0
+        });
+      } catch (error) {
+        console.error('Failed to load attention data:', error);
+      }
+    };
+    fetchAttentionData();
+  }, []);
+
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -51,7 +102,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
           </div>
           <div>
             <h1 className="text-[15px] font-bold leading-tight">LivestoCare</h1>
-            <p className="text-[10px] text-emerald-200/70 font-medium leading-tight mt-0.5">Digital Farm Management &amp;<br/>MRL Compliance</p>
+            <p className="text-[10px] text-emerald-100 font-medium leading-tight mt-0.5">Digital Farm Management &amp;<br/>MRL Compliance</p>
           </div>
         </div>
 
@@ -74,6 +125,63 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
               </Link>
             );
           })}
+
+          <div className="mt-8 pt-6 border-t border-white/10 px-1 pb-4">
+            <h3 className="text-[11px] font-bold text-white uppercase tracking-wider mb-3">Today's Attention</h3>
+            <div className="space-y-2">
+              
+              <div className="flex items-start gap-2.5 p-1.5 -mx-1.5 rounded hover:bg-white/5 transition-colors group">
+                <div className="flex flex-col transition-all">
+                  <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors flex items-center">
+                    <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-[#EF4444] text-white text-[9px] font-bold mr-1.5 shrink-0">{attentionData.restrictedAnimals}</span>
+                    Animals
+                  </span>
+                  <span className="text-[10px] text-emerald-200/60 leading-tight mt-0.5 ml-[24px]">Cannot enter food chain</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-1.5 -mx-1.5 rounded hover:bg-white/5 transition-colors group">
+                <div className="flex flex-col transition-all">
+                  <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors flex items-center">
+                    <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-[#F59E0B] text-white text-[9px] font-bold mr-1.5 shrink-0">{attentionData.withdrawalThisWeek}</span>
+                    Withdrawal
+                  </span>
+                  <span className="text-[10px] text-emerald-200/60 leading-tight mt-0.5 ml-[24px]">Periods ending this week</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-1.5 -mx-1.5 rounded hover:bg-white/5 transition-colors group">
+                <div className="flex flex-col transition-all">
+                  <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors flex items-center">
+                    <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-[#2563EB] text-white text-[9px] font-bold mr-1.5 shrink-0">{attentionData.mrlTestsPending}</span>
+                    MRL Tests
+                  </span>
+                  <span className="text-[10px] text-emerald-200/60 leading-tight mt-0.5 ml-[24px]">Awaiting results</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-1.5 -mx-1.5 rounded hover:bg-white/5 transition-colors group">
+                <div className="flex flex-col transition-all">
+                  <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors flex items-center">
+                    <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-[#16A34A] text-white text-[9px] font-bold mr-1.5 shrink-0">{attentionData.treatmentsThisWeek}</span>
+                    Treatments
+                  </span>
+                  <span className="text-[10px] text-emerald-200/60 leading-tight mt-0.5 ml-[24px]">Recorded this week</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-1.5 -mx-1.5 rounded hover:bg-white/5 transition-colors group">
+                <div className="flex flex-col transition-all">
+                  <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors flex items-center">
+                    <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-[#22C55E] text-white text-[9px] font-bold mr-1.5 shrink-0">{attentionData.clearedAnimals}</span>
+                    Cleared Animals
+                  </span>
+                  <span className="text-[10px] text-emerald-200/60 leading-tight mt-0.5 ml-[24px]">Currently cleared</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </nav>
       </aside>
     </>

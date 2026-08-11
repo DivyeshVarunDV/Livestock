@@ -93,9 +93,7 @@ export default function UsersPage() {
   const [status, setStatus] = useState('ACTIVE');
   const [password, setPassword] = useState('');
 
-  useEffect(() => {
-    loadUsers();
-  }, [roleFilter, statusFilter]);
+
 
   async function loadUsers() {
     try {
@@ -113,7 +111,11 @@ export default function UsersPage() {
     } catch {
       setUsers(defaultDemoUsers);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadUsers();
+  }, [roleFilter, statusFilter]);
 
   const handleOpenModal = (target?: any) => {
     if (target) {
@@ -291,69 +293,38 @@ export default function UsersPage() {
   const farmersCount = users.filter((u) => u.role === 'FARMER').length;
 
   return (
-    <div
-      className="animate-fade-in"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-        width: '100%',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* 1. Page Header (Government Portal Specification) */}
-      <div
-        className="page-header"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+    <div className="flex flex-col gap-6 w-full pb-8 bg-gray-50 min-h-screen">
+      {/* 1. Page Header */}
+      <div className="bg-white px-8 py-6 border-b border-gray-200">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <span
-              className="badge"
-              style={{
-                background: '#E8F5E9',
-                color: '#1B5E20',
-                border: '1px solid #C8E6C9',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-              }}
+              className="bg-green-100 text-green-800 border border-green-200 rounded px-2 py-0.5 text-xs font-bold"
             >
               DAH&amp;D • NIC E-GOVERNANCE
             </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span className="text-xs text-gray-500">
               RBAC Directory v2.1
             </span>
           </div>
-          <h1>User Authentication &amp; Role Management</h1>
-          <p className="subtitle">
-            Manage System Administrators, Veterinary Officers, and Registered Farmers with granular RBAC &amp; MRL compliance access
+          <h1 className="text-2xl font-bold text-gray-900">Users & Access Management</h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            Manage LivestoCare users, roles, permissions, and account status.
           </p>
         </div>
         <button
           type="button"
           onClick={() => handleOpenModal()}
-          className="btn-primary"
-          style={{
-            padding: '10px 18px',
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
+          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm"
         >
           <i className="fa fa-user-plus"></i>
           <span>Add User</span>
         </button>
       </div>
 
-      {/* 2. Statistics Cards (4-Card Enterprise Grid) */}
-      <div className="stats-grid-4">
+
+      {/* 2. Statistics Cards */}
+      <div className="px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Users Card */}
         <div className="stat-card">
           <div className="stat-header">
@@ -439,18 +410,9 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* 3. Filters & Search Bar (Enterprise SAP Fiori / Azure Toolbar) */}
-      <div
-        className="enterprise-card"
-        style={{
-          padding: '14px 18px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '14px',
-        }}
-      >
+      {/* 3. Filters & Search Bar */}
+      <div className="px-8">
+        <div className="bg-white rounded-t-xl border border-gray-200 border-b-0 p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
         {/* Search Input */}
         <div
           style={{
@@ -555,9 +517,11 @@ export default function UsersPage() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Summary Bar */}
       <div
+        className="px-8"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -574,20 +538,12 @@ export default function UsersPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10B981' }}>
           <i className="fa fa-shield"></i>
-          <span>NIC Government Portal SSO &amp; RBAC Active</span>
+          <span>NIC Portal SSO &amp; RBAC Active</span>
         </div>
       </div>
 
-      {/* 4. Complete User Management Table (8 Required Columns fitting 100% screen width) */}
-      <div
-        className="enterprise-card"
-        style={{
-          padding: 0,
-          overflowX: 'auto',
-          width: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
+      <div className="px-8 flex-1 pb-8">
+        <div className="bg-white rounded-b-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto w-full">
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '960px' }}>
           <thead>
             <tr
@@ -614,7 +570,7 @@ export default function UsersPage() {
               <tr>
                 <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <i className="fa fa-circle-o-notch fa-spin" style={{ fontSize: '1.5rem', marginBottom: '8px', color: 'var(--accent-primary)' }}></i>
-                  <div>Loading Government Enterprise Users...</div>
+                  <div>Loading Enterprise Users...</div>
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
@@ -905,6 +861,7 @@ export default function UsersPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* 5. Add / Edit User Modal */}
@@ -935,7 +892,7 @@ export default function UsersPage() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#1E293B' }}>
                 Email Address
@@ -980,7 +937,7 @@ export default function UsersPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#1E293B' }}>
                 Phone Number
@@ -1020,7 +977,7 @@ export default function UsersPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#1E293B' }}>
                 Account Status

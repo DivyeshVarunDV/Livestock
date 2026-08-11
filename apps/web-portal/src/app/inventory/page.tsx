@@ -23,9 +23,7 @@ export default function InventoryPage() {
   const [cost, setCost] = useState('25');
   const [storageLocation, setStorageLocation] = useState('Cabinet A');
 
-  useEffect(() => {
-    loadInventory();
-  }, []);
+
 
   const loadInventory = async () => {
     setLoading(true);
@@ -99,7 +97,11 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadInventory();
+  }, []);
 
   const handleOpenModal = (item?: any) => {
     if (item) {
@@ -194,7 +196,8 @@ export default function InventoryPage() {
     }
     if (statusFilter === 'EXPIRING') {
       const daysLeft =
-        (new Date(item.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+        // eslint-disable-next-line react-hooks/purity
+        (new Date(item.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
       return daysLeft < 90;
     }
     return true;
@@ -459,7 +462,7 @@ export default function InventoryPage() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                 Manufacturer
@@ -497,7 +500,7 @@ export default function InventoryPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                 Current Stock (Units)
@@ -552,7 +555,7 @@ export default function InventoryPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                 Expiry Date

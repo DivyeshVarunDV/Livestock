@@ -130,7 +130,7 @@ export default function NotificationsPage() {
             Manage compliance reminders, health alerts, withdrawal notifications, and multi-channel delivery
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn-secondary"

@@ -2,12 +2,13 @@
 
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  icon?: string;
+  icon?: React.ComponentType<{ size?: number; className?: string }> | string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string;
@@ -134,9 +135,17 @@ export default function Modal({
         tabIndex={-1}
       >
         {/* Header */}
-        <div className="modal-header">
-          <h3 id={titleId}>
-            {icon && <i className={`fa ${icon}`} style={{ color: 'var(--accent-primary)', marginRight: '8px' }}></i>}
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 id={titleId} style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
+            {icon && (
+              typeof icon === 'string' ? (
+                <i className={`fa ${icon}`} style={{ color: 'var(--accent-primary)', marginRight: '8px' }}></i>
+              ) : (
+                <span style={{ marginRight: '8px', display: 'inline-flex', alignItems: 'center' }}>
+                  {React.createElement(icon, { size: 20, className: "text-green-700" })}
+                </span>
+              )
+            )}
             {title}
           </h3>
           <button
@@ -145,7 +154,7 @@ export default function Modal({
             onClick={onClose}
             aria-label="Close modal"
           >
-            <i className="fa fa-times"></i>
+            <X size={18} />
           </button>
         </div>
 
