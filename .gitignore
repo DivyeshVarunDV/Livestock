@@ -7,10 +7,11 @@ node_modules/
 .next/
 out/
 
-# NestJS build output
+# NestJS & Turborepo build output
 dist/
 build/
 *.tsbuildinfo
+.turbo/
 
 # Local databases and SQLite files
 *.db

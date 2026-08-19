@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import Modal from '@/components/Modal';
+import Link from 'next/link';
+import { ChevronRight, ArrowRight } from 'lucide-react';
 
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -206,83 +208,99 @@ export default function InventoryPage() {
   const lowStockCount = items.filter((i) => i.stock <= i.minimumStock).length;
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+    <div className="animate-fade-in flex flex-col gap-6 w-full">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-gray-500 mb-2 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+        <Link href="/" className="hover:text-blue-600 transition-colors">Dashboard</Link>
+        <ChevronRight size={14} />
+        <span className="font-semibold text-gray-800">Inventory</span>
+      </div>
+
       {/* Header */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="page-header flex justify-between items-center flex-wrap gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div>
-          <h1>Medicine & Veterinary Inventory</h1>
-          <p className="subtitle">
+          <h1 className="text-2xl font-bold text-gray-900">Medicine & Veterinary Inventory</h1>
+          <p className="subtitle text-gray-600 mt-1">
             Enterprise batch tracking, expiry monitoring, minimum threshold alerts, and supplier cost management
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => handleOpenModal()}
-        >
-          <i className="fa fa-plus" style={{ marginRight: '6px' }}></i>
-          Add New Medicine
-        </button>
+        <div className="flex items-center gap-3">
+          <Link href="/reports" className="btn-secondary flex items-center gap-2">
+            Generate Report <ArrowRight size={16} />
+          </Link>
+          <button
+            type="button"
+            className="btn-primary flex items-center gap-2"
+            onClick={() => handleOpenModal()}
+          >
+            <i className="fa fa-plus"></i>
+            Add New Medicine
+          </button>
+        </div>
       </div>
 
       {/* Reference Stats Pill Bar */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <div className="glass-panel" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <i className="fa fa-medkit" style={{ color: 'var(--accent-primary)', fontSize: '1.2rem' }}></i>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total SKU Types</div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{items.length}</div>
+      <div className="stagger-children flex gap-4 flex-wrap">
+        <div className="glass-panel card-interactive animate-fade-in-up flex-1 min-w-[240px] p-4 flex flex-col gap-2" style={{ animationDelay: '0.15s' }}>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2">
+              <i className="fa fa-medkit text-blue-600 text-xl"></i>
+              <div className="text-xs text-gray-500 font-bold uppercase tracking-wide">Total SKU Types</div>
+            </div>
+            <Link href="/amu" className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-semibold transition-colors">
+              View Treatments <ArrowRight size={12} />
+            </Link>
           </div>
+          <div className="font-bold text-3xl text-gray-900 mt-1">{items.length}</div>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <i className="fa fa-exclamation-triangle" style={{ color: '#ef4444', fontSize: '1.2rem' }}></i>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Low Stock Alerts</div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', color: lowStockCount > 0 ? '#ef4444' : 'inherit' }}>
-              {lowStockCount}
+
+        <div className="glass-panel card-interactive animate-fade-in-up flex-1 min-w-[240px] p-4 flex flex-col gap-2" style={{ animationDelay: '0.2s' }}>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2">
+              <i className="fa fa-exclamation-triangle text-red-500 text-xl"></i>
+              <div className="text-xs text-gray-500 font-bold uppercase tracking-wide">Low Stock Alerts</div>
             </div>
           </div>
+          <div className={`font-bold text-3xl mt-1 ${lowStockCount > 0 ? 'text-red-500' : 'text-gray-900'}`}>
+            {lowStockCount}
+          </div>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <i className="fa fa-archive" style={{ color: '#0284c7', fontSize: '1.2rem' }}></i>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Stock Units</div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
-              {items.reduce((acc, cur) => acc + (cur.stock || 0), 0)}
+
+        <div className="glass-panel card-interactive animate-fade-in-up flex-1 min-w-[240px] p-4 flex flex-col gap-2" style={{ animationDelay: '0.25s' }}>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2">
+              <i className="fa fa-archive text-sky-600 text-xl"></i>
+              <div className="text-xs text-gray-500 font-bold uppercase tracking-wide">Total Stock Units</div>
             </div>
+          </div>
+          <div className="font-bold text-3xl text-gray-900 mt-1">
+            {items.reduce((acc, cur) => acc + (cur.stock || 0), 0)}
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: 1, minWidth: '280px' }}>
-          <i className="fa fa-search" style={{ color: 'var(--text-muted)' }}></i>
+      <div className="glass-panel p-4 flex justify-between items-center flex-wrap gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+        <div className="flex gap-2 items-center flex-1 min-w-[280px] bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+          <i className="fa fa-search text-gray-400"></i>
           <input
             type="text"
             placeholder="Search medicine name, manufacturer, or batch number..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{
-              flex: 1,
-              border: 'none',
-              background: 'transparent',
-              outline: 'none',
-              fontSize: '0.9rem',
-              color: 'var(--text-main)',
-            }}
+            className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 placeholder-gray-400"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
             >
               <i className="fa fa-times"></i>
             </button>
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-2">
           {[
             { id: 'ALL', label: 'All Inventory' },
             { id: 'LOW', label: 'Low Stock Alerts' },
@@ -291,16 +309,11 @@ export default function InventoryPage() {
             <button
               key={st.id}
               onClick={() => setStatusFilter(st.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-light)',
-                background: statusFilter === st.id ? 'var(--accent-primary)' : 'transparent',
-                color: statusFilter === st.id ? '#ffffff' : 'var(--text-muted)',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-              }}
+              className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                statusFilter === st.id
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-transparent text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
             >
               {st.label}
             </button>
@@ -309,29 +322,29 @@ export default function InventoryPage() {
       </div>
 
       {/* Inventory Table */}
-      <div className="glass-panel" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="glass-panel p-0 overflow-x-auto animate-fade-in-up custom-scrollbar" style={{ animationDelay: '0.35s' }}>
+        <table className="data-table w-full border-collapse">
           <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border-light)', textAlign: 'left' }}>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>MEDICINE & MANUFACTURER</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>BATCH NO.</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>EXPIRY DATE</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>STOCK LEVEL</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>STORAGE & SUPPLIER</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700 }}>UNIT COST</th>
-              <th style={{ padding: '14px 18px', fontSize: '0.8rem', fontWeight: 700, textAlign: 'right' }}>ACTIONS</th>
+            <tr className="bg-slate-50 border-b border-gray-200 text-left">
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">MEDICINE & MANUFACTURER</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">BATCH NO.</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">EXPIRY DATE</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">STOCK LEVEL</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">STORAGE & SUPPLIER</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider">UNIT COST</th>
+              <th className="p-4 text-xs font-bold text-gray-600 uppercase tracking-wider text-right">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   Loading inventory catalog...
                 </td>
               </tr>
             ) : filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   No medicines matching criteria
                 </td>
               </tr>
@@ -341,88 +354,55 @@ export default function InventoryPage() {
                 return (
                   <tr
                     key={item.id}
-                    style={{
-                      borderBottom: '1px solid var(--border-light)',
-                      transition: 'background 0.15s',
-                    }}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                   >
-                    <td style={{ padding: '14px 18px' }}>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+                    <td className="p-4">
+                      <div className="font-bold text-slate-900 text-sm">
                         {item.medicineName}
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <div className="text-xs text-gray-500 mt-0.5">
                         {item.manufacturer}
                       </div>
                     </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 600, fontSize: '0.85rem' }}>
+                    <td className="p-4 font-semibold text-sm text-gray-700">
                       {item.batchNumber}
                     </td>
-                    <td style={{ padding: '14px 18px', fontSize: '0.85rem' }}>
-                      <i className="fa fa-calendar-o" style={{ marginRight: '6px', color: 'var(--text-muted)' }}></i>
+                    <td className="p-4 text-sm text-gray-700">
+                      <i className="fa fa-calendar-o mr-2 text-gray-400"></i>
                       {new Date(item.expiryDate).toLocaleDateString()}
                     </td>
-                    <td style={{ padding: '14px 18px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
                         <span
-                          style={{
-                            fontWeight: 700,
-                            fontSize: '0.95rem',
-                            color: isLowStock ? '#dc2626' : '#059669',
-                          }}
+                          className={`font-bold text-sm ${isLowStock ? 'text-red-600' : 'text-emerald-600'}`}
                         >
                           {item.stock} units
                         </span>
                         {isLowStock && (
-                          <span
-                            style={{
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              background: '#fee2e2',
-                              color: '#dc2626',
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                            }}
-                          >
+                          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-xs font-bold">
                             LOW STOCK (Min: {item.minimumStock})
                           </span>
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: '14px 18px', fontSize: '0.85rem' }}>
+                    <td className="p-4 text-sm text-gray-700">
                       <div>{item.storageLocation}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.supplier}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{item.supplier}</div>
                     </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 700, fontSize: '0.9rem' }}>
+                    <td className="p-4 font-bold text-sm text-gray-800">
                       ${Number(item.cost).toFixed(2)}
                     </td>
-                    <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                    <td className="p-4 text-right">
                       <button
                         onClick={() => handleOpenModal(item)}
-                        style={{
-                          background: '#f1f5f9',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          color: '#334155',
-                          cursor: 'pointer',
-                          marginRight: '6px',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                        }}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-md text-sm font-semibold mr-2 transition-colors"
                       >
-                        <i className="fa fa-pencil" style={{ marginRight: '4px' }}></i>
+                        <i className="fa fa-pencil mr-1"></i>
                         Edit
                       </button>
                       <button
                         onClick={() => handleDeleteItem(item.id)}
-                        style={{
-                          background: '#fee2e2',
-                          border: 'none',
-                          padding: '6px 10px',
-                          borderRadius: '6px',
-                          color: '#dc2626',
-                          cursor: 'pointer',
-                        }}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-md transition-colors"
                       >
                         <i className="fa fa-trash"></i>
                       </button>
@@ -442,9 +422,9 @@ export default function InventoryPage() {
         title={editItem ? 'Edit Medicine SKU' : 'Add New Medicine SKU'}
         icon="fa-archive"
       >
-        <form onSubmit={handleSaveItem} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSaveItem} className="flex flex-col gap-4">
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
               Medicine / Drug Name
             </label>
             <input
@@ -453,18 +433,13 @@ export default function InventoryPage() {
               value={medicineName}
               onChange={(e) => setMedicineName(e.target.value)}
               placeholder="e.g. Oxytetracycline 200mg/ml"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-light)',
-              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Manufacturer
               </label>
               <input
@@ -472,16 +447,11 @@ export default function InventoryPage() {
                 value={manufacturer}
                 onChange={(e) => setManufacturer(e.target.value)}
                 placeholder="AgroVet Pharma Ltd."
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Batch Number
               </label>
               <input
@@ -490,19 +460,14 @@ export default function InventoryPage() {
                 value={batchNumber}
                 onChange={(e) => setBatchNumber(e.target.value)}
                 placeholder="BATCH-001"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Current Stock (Units)
               </label>
               <input
@@ -510,16 +475,11 @@ export default function InventoryPage() {
                 required
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Minimum Stock
               </label>
               <input
@@ -527,16 +487,11 @@ export default function InventoryPage() {
                 required
                 value={minimumStock}
                 onChange={(e) => setMinimumStock(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Unit Cost ($)
               </label>
               <input
@@ -545,19 +500,14 @@ export default function InventoryPage() {
                 required
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Expiry Date
               </label>
               <input
@@ -565,16 +515,11 @@ export default function InventoryPage() {
                 required
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Storage Location
               </label>
               <input
@@ -582,18 +527,13 @@ export default function InventoryPage() {
                 value={storageLocation}
                 onChange={(e) => setStorageLocation(e.target.value)}
                 placeholder="Cold Storage Room A"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-light)',
-                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
               Supplier / Distributor
             </label>
             <input
@@ -601,16 +541,11 @@ export default function InventoryPage() {
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
               placeholder="AgriShield Global Supply Co."
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-light)',
-              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+          <div className="flex justify-end gap-3 mt-4">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
@@ -620,9 +555,9 @@ export default function InventoryPage() {
             </button>
             <button
               type="submit"
-              className="btn-primary"
+              className="btn-primary flex items-center gap-2"
             >
-              <i className="fa fa-save" style={{ marginRight: '6px' }}></i>
+              <i className="fa fa-save"></i>
               {editItem ? 'Save Changes' : 'Add to Catalog'}
             </button>
           </div>

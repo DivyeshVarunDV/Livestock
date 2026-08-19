@@ -1,5 +1,19 @@
 {
-  "dependencies": {
-    "lucide-react": "^1.31.0"
-  }
+  "name": "livestock-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "turbo run format"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.9"
+  },
+  "packageManager": "npm@10.8.2"
 }

@@ -15,7 +15,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.83.0",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "@livestock/shared-types": "*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

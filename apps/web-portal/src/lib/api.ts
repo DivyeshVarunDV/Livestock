@@ -33,9 +33,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     if (!response.ok) {
       if (response.status === 401) {
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
+          const storedToken = localStorage.getItem('token');
+          // Only redirect if token exists and is NOT the demo token
+          if (storedToken && storedToken !== 'gov-demo-token-2026') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
         }
       }
       let errMsg = 'Something went wrong';

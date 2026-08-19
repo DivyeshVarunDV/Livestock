@@ -23,11 +23,15 @@ export default function FarmsDirectoryPage() {
       setLoading(true);
       try {
         const [farmsRes, animalsRes] = await Promise.all([
-          apiFetch('/farms'),
-          apiFetch('/animals'),
+          apiFetch('/farms').catch(() => null),
+          apiFetch('/animals').catch(() => null),
         ]);
-        setFarms(farmsRes || []);
-        setAnimals(animalsRes || []);
+        if (Array.isArray(farmsRes) && farmsRes.length > 0) {
+          setFarms(farmsRes);
+        }
+        if (Array.isArray(animalsRes) && animalsRes.length > 0) {
+          setAnimals(animalsRes);
+        }
       } catch (err) {
         console.error('Failed to load records', err);
       } finally {

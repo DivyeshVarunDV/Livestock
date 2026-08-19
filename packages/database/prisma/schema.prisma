@@ -12,8 +12,8 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  role         String // ADMIN, VETERINARIAN, FARMER
-  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  role         String   // ADMIN, VETERINARIAN, FARMER
+  status       String   @default("ACTIVE") // ACTIVE, DEACTIVATED
   phone        String?
   department   String?
   createdAt    DateTime @default(now())
@@ -26,48 +26,47 @@ model Farm {
   name          String
   ownerId       String?
   owner         User?    @relation(fields: [ownerId], references: [id])
-  ownerName     String // Plain text name of the owner
+  ownerName     String   // Plain text name of the owner
   address       String
   contactNumber String
-  location      String // GPS coordinates or text address
+  location      String   // GPS coordinates or text address
   animals       Animal[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
 model Animal {
-  id            String         @id @default(uuid())
-  tagNumber     String         @unique // RFID/Tag Number
+  id            String   @id @default(uuid())
+  tagNumber     String   @unique // RFID/Tag Number
   name          String
-  species       String // CATTLE, SHEEP, PIG, GOAT, poultry, etc.
+  species       String   // CATTLE, SHEEP, PIG, GOAT, poultry, etc.
   breed         String
-  gender        String // MALE, FEMALE
-  age           Int // in months
-  weight        Float // in kg
-  status        String // HEALTHY, UNDER_TREATMENT, QUARANTINED
-  mrlStatus     String // CLEARED, CLEARING_SOON, DO_NOT_SELL
+  gender        String   // MALE, FEMALE
+  age           Int      // in months
+  weight        Float    // in kg
+  status        String   // HEALTHY, UNDER_TREATMENT, QUARANTINED
+  mrlStatus     String   // CLEARED, CLEARING_SOON, DO_NOT_SELL
   farmId        String
-  farm          Farm           @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  farm          Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
   healthRecords HealthRecord[]
   vaccinations  Vaccination[]
   treatments    Treatment[]
-  prescriptions Prescription[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model HealthRecord {
-  id               String   @id @default(uuid())
-  animalId         String
-  animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  diseases         String
-  diagnosis        String
-  treatmentNotes   String
-  veterinarianId   String?
+  id             String   @id @default(uuid())
+  animalId       String
+  animal         Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  diseases       String
+  diagnosis      String
+  treatmentNotes String
+  veterinarianId String?
   veterinarianName String
-  date             DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  date           DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Vaccination {
@@ -90,7 +89,7 @@ model Treatment {
   drugName                 String
   dosage                   String
   administrationDate       DateTime
-  withdrawalPeriod         Int // in days
+  withdrawalPeriod         Int      // in days
   withdrawalCompletionDate DateTime
   veterinarianId           String?
   veterinarianName         String
@@ -98,28 +97,12 @@ model Treatment {
   updatedAt                DateTime @updatedAt
 }
 
-model Prescription {
-  id               String   @id @default(uuid())
-  animalId         String
-  animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  medicine         String
-  veterinarianId   String?
-  veterinarianName String
-  dosage           String
-  duration         Int
-  instructions     String
-  prescriptionDate DateTime
-  status           String   @default("ACTIVE")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-}
-
 model MrlRule {
   id               String   @id @default(uuid())
   drugName         String
   species          String
-  withdrawalPeriod Int // default in days
-  mrlLimit         String? // e.g. "50 ug/kg"
+  withdrawalPeriod Int      // default in days
+  mrlLimit         String?  // e.g. "50 ug/kg"
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -129,11 +112,11 @@ model MrlRule {
 model LedgerBlock {
   id           Int      @id @default(autoincrement())
   timestamp    DateTime @default(now())
-  action       String
+  action       String   
   recordId     String
-  dataPayload  String
+  dataPayload  String   
   previousHash String
-  currentHash  String
+  currentHash  String   
 }
 
 model Inventory {
@@ -145,36 +128,53 @@ model Inventory {
   stock           Int
   minimumStock    Int      @default(10)
   supplier        String
-  cost            Float    @default(0)
-  storageLocation String   @default("Main Pharmacy Room")
+  cost            Float
+  storageLocation String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 model Notification {
   id        String   @id @default(uuid())
-  userId    String?
+  userId    String?  // Null means broadcast / general alert
   title     String
   message   String
-  type      String   @default("GENERAL") // GENERAL, ALERT, WARNING, INFO
+  type      String   // VACCINATION_DUE, BOOSTER_DUE, WITHDRAWAL_ENDING, CRITICAL_ALERT, AMU_WARNING, LOW_INVENTORY
   read      Boolean  @default(false)
   entityId  String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@index([userId, read])
+  @@index([createdAt])
 }
 
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
-  userEmail String
-  userName  String
-  role      String
-  action    String // CREATE, UPDATE, DELETE, LOGIN, etc.
-  entity    String // FARM, ANIMAL, TREATMENT, USER, SYSTEM, etc.
+  userEmail String?
+  userName  String?
+  role      String?
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT, DEACTIVATE
+  entity    String   // FARM, ANIMAL, TREATMENT, USER, INVENTORY, VACCINATION, REPORT
   entityId  String?
   oldValue  String?
   newValue  String?
-  ipAddress String   @default("127.0.0.1")
+  ipAddress String?  @default("127.0.0.1")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@index([role])
+}
+
+model ReportLog {
+  id          String   @id @default(uuid())
+  title       String
+  type        String   // FARM_REPORT, ANIMAL_REPORT, TREATMENT_REPORT, VACCINATION_REPORT, COMPLIANCE_REPORT, INVENTORY_REPORT
+  format      String   // PDF, EXCEL, CSV
+  generatedBy String
+  parameters  String?
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
 }
