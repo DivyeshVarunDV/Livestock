@@ -5,13 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { 
-  Shield, Globe, User, Mail, Lock, Eye, EyeOff, LogIn, CheckCircle2, Stethoscope, Home, Syringe, Clock, ShieldCheck, ChevronDown, PawPrint
+  Shield, Globe, User, Mail, Lock, Eye, EyeOff, LogIn, CheckCircle2, Stethoscope, Home, ShieldCheck, ChevronDown
 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('VETERINARIAN');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
@@ -152,7 +151,6 @@ export default function LoginPage() {
               onClick={() => {
                 setEmail('admin@livestocare.local');
                 setPassword('Admin@12345');
-                setRole('ADMIN');
               }}
               className="flex-1 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors border border-gray-300"
             >
@@ -163,7 +161,6 @@ export default function LoginPage() {
               onClick={() => {
                 setEmail('vet@livestocare.local');
                 setPassword('Vet@12345');
-                setRole('VETERINARIAN');
               }}
               className="flex-1 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors border border-gray-300"
             >
@@ -173,32 +170,6 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="w-full space-y-3">
-            
-            {/* Role Selector */}
-            <div className="space-y-1.5 mb-2">
-              <label className="block text-[12px] font-semibold text-[#111827]">Select your role</label>
-              <div className="flex w-full rounded-lg border border-[#D9DEE5] bg-white p-1 gap-1">
-                {[
-                  { id: 'ADMIN', label: 'Administrator', icon: User },
-                  { id: 'VETERINARIAN', label: 'Veterinarian', icon: Stethoscope },
-                  { id: 'FARM_MANAGER', label: 'Farm Manager', icon: Home }
-                ].map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setRole(r.id)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 xl:py-2 rounded-md text-[11px] xl:text-[12px] font-semibold transition-all duration-200 ${
-                      role === r.id 
-                        ? 'bg-[#005B3A] text-white shadow-sm' 
-                        : 'text-[#5B6472] hover:bg-gray-50'
-                    }`}
-                  >
-                    <r.icon size={14} strokeWidth={role === r.id ? 2 : 1.5} className="hidden sm:block" />
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Email Field */}
             <div className="space-y-1">

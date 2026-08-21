@@ -47,7 +47,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashboardStats, compliance, treatments, alerts, animals] = await Promise.all([
+        const [dashboardStats, _compliance, treatments, alerts, animals] = await Promise.all([
           apiFetch('/reports/dashboard'),
           apiFetch('/reports/compliance'),
           apiFetch('/treatments'),
@@ -176,7 +176,7 @@ export default function Dashboard() {
     }
     if (amuFilters.period !== 'All Time') {
       const now = new Date();
-      let limitDate = new Date();
+      const limitDate = new Date();
       if (amuFilters.period === 'Last 30 Days') limitDate.setDate(now.getDate() - 30);
       else if (amuFilters.period === 'Last 6 Months') limitDate.setMonth(now.getMonth() - 6);
       else if (amuFilters.period === 'Last Year') limitDate.setFullYear(now.getFullYear() - 1);

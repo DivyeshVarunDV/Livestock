@@ -32,7 +32,7 @@ export default function MRLCompliancePage() {
   const mrlRecords = animals.map(a => {
     let measuredResidue: number | null = 5;
     let mrlLimit = 100;
-    let testDate = new Date().toISOString();
+    const testDate = new Date().toISOString();
     let drug = 'Various';
     let withdrawalStatus: 'ACTIVE' | 'DUE SOON' | 'CLEARED' = 'CLEARED';
     let withdrawalDaysRemaining = 0;

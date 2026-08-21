@@ -66,13 +66,13 @@ export default function Reports() {
       else if (activeReport === 'compliance') endpoint = '/animals';
       else if (activeReport === 'inventory') endpoint = '/inventory';
 
-      let res = await apiFetch(endpoint);
+      const res = await apiFetch(endpoint);
       let list = Array.isArray(res) ? res : (res?.records || res?.items || []);
 
       // Filter by Date
       if (startDate || endDate) {
         list = list.filter((item: any) => {
-          let dateStr = item.createdAt || item.administrationDate || item.vaccinationDate || item.prescriptionDate;
+          const dateStr = item.createdAt || item.administrationDate || item.vaccinationDate || item.prescriptionDate;
           if (!dateStr) return true;
           const d = new Date(dateStr);
           const s = startDate ? new Date(startDate) : new Date(0);

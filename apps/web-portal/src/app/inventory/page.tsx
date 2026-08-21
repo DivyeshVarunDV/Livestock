@@ -196,7 +196,7 @@ export default function InventoryPage() {
     }
     if (statusFilter === 'EXPIRING') {
       const daysLeft =
-        // eslint-disable-next-line react-hooks/purity
+         
         (new Date(item.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
       return daysLeft < 90;
     }

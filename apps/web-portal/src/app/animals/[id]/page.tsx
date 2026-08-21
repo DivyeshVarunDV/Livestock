@@ -147,7 +147,7 @@ export default function AnimalProfile() {
   events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   let measuredResidue = 5;
-  let mrlLimit = 100;
+  const mrlLimit = 100;
   let drug = 'Various';
   
   if (animal.mrlStatus === 'DO_NOT_SELL') {
@@ -168,7 +168,7 @@ export default function AnimalProfile() {
     withdrawalDaysRemaining: calc.daysRemaining
   });
 
-  animal.mrlStatus = mrlDecision.status;
+  const currentMrlStatus = mrlDecision.status;
 
   const formatMrl = (status: string) => {
     if (!status) return '';
@@ -222,8 +222,8 @@ export default function AnimalProfile() {
           <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 w-full">
             <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500 block mb-1.5">MRL Status</span>
             <div className="group relative inline-block">
-              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${animal.mrlStatus === 'COMPLIANT' ? 'bg-green-100 text-green-800' : animal.mrlStatus === 'PENDING' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>
-                {formatMrl(animal.mrlStatus)}
+              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${currentMrlStatus === 'COMPLIANT' ? 'bg-green-100 text-green-800' : currentMrlStatus === 'PENDING' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>
+                {formatMrl(currentMrlStatus)}
               </span>
               <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 text-white text-xs rounded p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                 {mrlDecision.reason}
