@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, 
   Tractor, 
@@ -16,11 +17,16 @@ import {
   BarChart3, 
   Users, 
   Settings,
-  Shield
+  Shield,
+  Activity,
+  Bell,
+  User as UserIcon,
+  Stethoscope
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const [attentionData, setAttentionData] = useState({
     restrictedAnimals: 0,
@@ -69,8 +75,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   }, []);
 
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  const adminNavItems = [
+    { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Farms', href: '/farms', icon: Tractor },
     { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/treatments', icon: Syringe },
@@ -82,6 +88,23 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
+
+  const vetNavItems = [
+    { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
+    { name: 'My Animals', href: '/veterinarian/animals', icon: PawPrint },
+    { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
+    { name: 'Prescriptions', href: '/veterinarian/prescriptions', icon: FileText },
+    { name: 'Withdrawal Monitoring', href: '/veterinarian/withdrawal', icon: Clock },
+    { name: 'MRL & Compliance', href: '/veterinarian/mrl', icon: ShieldCheck },
+    { name: 'Laboratory', href: '/veterinarian/laboratory', icon: FlaskConical },
+    { name: 'AMU Monitoring', href: '/veterinarian/amu', icon: Activity },
+    { name: 'Health Records', href: '/veterinarian/health-records', icon: Stethoscope },
+    { name: 'Alerts', href: '/veterinarian/alerts', icon: Bell },
+    { name: 'Reports', href: '/veterinarian/reports', icon: BarChart3 },
+    { name: 'My Profile', href: '/veterinarian/profile', icon: UserIcon },
+  ];
+
+  const navItems = user?.role === 'veterinarian' ? vetNavItems : adminNavItems;
 
   return (
     <>

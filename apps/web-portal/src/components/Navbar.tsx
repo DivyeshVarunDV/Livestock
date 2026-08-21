@@ -1,6 +1,13 @@
-import { Menu, Search, Bell, MessageSquare, Download, Calendar } from 'lucide-react';
+'use client';
+import Link from 'next/link';
+import { Menu, Search, Bell, MessageSquare, Download, Calendar, LogOut, User } from 'lucide-react';
+import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { user, logout } = useAuth();
+
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between bg-white px-4 border-b border-gray-200 shadow-sm sm:px-6">
       <div className="flex items-center gap-4 flex-1">
@@ -49,15 +56,44 @@ export default function Navbar({ toggleSidebar }: { toggleSidebar: () => void })
           Export Report
         </button>
 
-        {/* Admin Profile */}
-        <div className="flex items-center gap-3 pl-2">
-          <div className="hidden md:block text-right">
-            <div className="text-sm font-semibold text-gray-800">Admin User</div>
-            <div className="text-[11px] font-medium text-gray-500">Super Admin</div>
-          </div>
-          <div className="h-9 w-9 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-            AU
-          </div>
+        {/* Admin Profile with Dropdown */}
+        <div className="relative ml-2">
+          <button 
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center gap-3 focus:outline-none hover:bg-gray-50 p-1.5 rounded-md transition-colors"
+          >
+            <div className="hidden md:block text-right">
+              <div className="text-sm font-semibold text-gray-800">{user?.name || (user?.role === 'veterinarian' ? 'LivestoCare Veterinarian' : 'Admin User')}</div>
+              <div className="text-[11px] font-medium text-gray-500">{user?.role === 'veterinarian' ? 'Veterinarian' : 'Super Admin'}</div>
+            </div>
+            <div className="h-9 w-9 rounded-full bg-green-100 border border-green-200 flex items-center justify-center text-green-700 font-bold text-xs shadow-sm overflow-hidden">
+              {user?.name ? user.name.substring(0, 2).toUpperCase() : (user?.role === 'veterinarian' ? 'LV' : 'AU')}
+            </div>
+          </button>
+          
+          {isProfileOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-100 py-1 z-50">
+              <Link 
+                href="/profile"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                onClick={() => setIsProfileOpen(false)}
+              >
+                <User size={16} />
+                My Profile
+              </Link>
+              <div className="h-px bg-gray-100 my-1"></div>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  logout();
+                }}
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -18,18 +18,18 @@ async function main() {
   
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@agrishield.com',
-      passwordHash,
-      name: 'System Admin',
+      email: 'admin@livestocare.local',
+      passwordHash: await bcrypt.hash('Admin@12345', 10),
+      name: 'System Administrator',
       role: 'ADMIN',
     },
   });
 
   const vet = await prisma.user.create({
     data: {
-      email: 'vet@agrishield.com',
-      passwordHash,
-      name: 'Dr. Arthur Sharma',
+      email: 'vet@livestocare.local',
+      passwordHash: await bcrypt.hash('Vet@12345', 10),
+      name: 'Dr. LivestoCare Veterinarian',
       role: 'VETERINARIAN',
     },
   });

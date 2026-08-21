@@ -32,14 +32,15 @@ export class AuthService {
       },
     });
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const normalizedRole = user.role.toLowerCase();
+    const payload = { sub: user.id, email: user.email, role: normalizedRole };
     return {
       token: this.jwtService.sign(payload),
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: normalizedRole,
       },
     };
   }
@@ -57,14 +58,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const normalizedRole = user.role.toLowerCase();
+    const payload = { sub: user.id, email: user.email, role: normalizedRole };
     return {
       token: this.jwtService.sign(payload),
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: normalizedRole,
       },
     };
   }

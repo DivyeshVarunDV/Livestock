@@ -6,6 +6,7 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ShieldAlert } from 'lucide-react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -18,6 +19,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.push('/login');
     }
   }, [user, loading, pathname, router]);
+
+  if (!loading && !user && pathname !== '/login') {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
+        <div className="text-center animate-pulse">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-gray-900 text-lg font-bold">Redirecting to Login...</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -37,6 +49,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const isAdminRoute = pathname.startsWith('/users') || pathname.startsWith('/settings') || pathname.startsWith('/admin');
+  const isAdmin = user?.role === 'admin';
+
+  const isVeterinarianRoute = pathname.startsWith('/veterinarian');
+  const isVeterinarian = user?.role === 'veterinarian';
+
+  let content = children;
+  if ((isAdminRoute && !isAdmin) || (isVeterinarianRoute && !isVeterinarian)) {
+    content = (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-6 text-center">
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+        <p className="text-gray-600 max-w-md">
+          You do not have permission to access this section.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-[#F8FAFC] overflow-hidden">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
@@ -45,8 +78,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         
         <main className="flex-1 overflow-y-auto flex flex-col">
-          <div className="flex-1 w-full">
-            {children}
+          <div className="flex-1 w-full h-full flex flex-col">
+            {content}
           </div>
 
           {/* Minimalist Footer */}
