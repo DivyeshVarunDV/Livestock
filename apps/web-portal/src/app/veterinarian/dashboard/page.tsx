@@ -3,158 +3,55 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import Link from 'next/link';
-import { calculateOverallWithdrawal } from '@/lib/withdrawalEngine';
-import { calculateMRLCompliance } from '@/lib/mrlEngine';
-import { calculateAMU } from '@/lib/amuEngine';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip,
-  PieChart, Pie, Cell, Legend
-} from 'recharts';
+import { useAuth } from '@/context/AuthContext';
 import { 
-  Tractor, PawPrint, Syringe, AlertTriangle, ShieldCheck, FileText, 
-  TrendingUp, TrendingDown, Activity, Plus, Pill, ClipboardList, FlaskConical
+  PawPrint, Syringe, AlertTriangle, ShieldCheck, FileText, 
+  Activity, Plus, Pill, ClipboardList, Package, Clock, Calendar,
+  ArrowRight, CheckCircle2, AlertCircle, AlertOctagon
 } from 'lucide-react';
 
-
-
-export default function Dashboard() {
-
+export default function VetDashboard() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  
-  const [amuFilters, setAmuFilters] = useState({
-    period: 'All Time',
-    farm: 'All Farms',
-    drug: 'All Drugs',
-    species: 'All Species'
-  });
 
-  const [dashboardData, setDashboardData] = useState({
-    stats: {
-      totalFarms: 0,
-      totalAnimals: 0,
-      underTreatment: 0,
-      vaccinationsDue: 0,
-      activeMrlAlerts: 0,
-      veterinaryPrescriptions: 0
-    },
-    rawTreatments: [] as any[],
-    livestockData: [] as any[],
-    recentTreatments: [] as any[],
-    withdrawalAlerts: [] as any[],
-    mrlCompliance: { total: 0, compliant: 0, nonCompliant: 0, pending: 0, percentage: 100 }
-  });
+  const [animals, setAnimals] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<any[]>([]);
+  const [withdrawalAlerts, setWithdrawalAlerts] = useState<any[]>([]);
+  const [inventoryAlerts, setInventoryAlerts] = useState<{ lowStock: any[]; expiringSoon: any[] }>({ lowStock: [], expiringSoon: [] });
+  const [vaccinations, setVaccinations] = useState<any[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [compliance, setCompliance] = useState<any>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashboardStats, compliance, treatments, alerts, animals] = await Promise.all([
-          apiFetch('/reports/dashboard'),
-          apiFetch('/reports/compliance'),
-          apiFetch('/treatments'),
-          apiFetch('/treatments/alerts'),
-          apiFetch('/animals')
+        const [
+          animalsData,
+          treatmentsData,
+          alertsData,
+          invAlerts,
+          vaccsData,
+          prescData,
+          compData
+        ] = await Promise.all([
+          apiFetch('/animals').catch(() => []),
+          apiFetch('/treatments').catch(() => []),
+          apiFetch('/treatments/alerts').catch(() => []),
+          apiFetch('/inventory/alerts').catch(() => ({ lowStock: [], expiringSoon: [] })),
+          apiFetch('/vaccinations/upcoming').catch(() => []),
+          apiFetch('/prescriptions').catch(() => []),
+          apiFetch('/reports/compliance').catch(() => null),
         ]);
 
-        const dashboardTreatments = Array.isArray(treatments) ? treatments : [];
-
-        const colors: Record<string, string> = {
-          'CATTLE': '#14532D',
-          'BUFFALO': '#2563EB',
-          'GOAT': '#F59E0B',
-          'SHEEP': '#8B5CF6',
-          'PIG': '#EF4444',
-          'POULTRY': '#06B6D4'
-        };
-        const livestockData = (dashboardStats.speciesDistribution || []).map((s: any) => ({
-          name: s.name.charAt(0).toUpperCase() + s.name.slice(1).toLowerCase(),
-          value: s.value,
-          color: colors[s.name.toUpperCase()] || '#8884d8'
-        }));
-
-        let mrlCompliant = 0;
-        let mrlNonCompliant = 0;
-        let mrlPending = 0;
-
-        (animals || []).forEach((a: any) => {
-          let measuredResidue: number | null = 5;
-          let drug = 'Various';
-          let withdrawalStatus: 'ACTIVE' | 'DUE SOON' | 'CLEARED' = 'CLEARED';
-          
-          if (a.mrlStatus === 'DO_NOT_SELL') {
-            measuredResidue = 150;
-            drug = 'Penicillin G';
-            withdrawalStatus = 'ACTIVE';
-          } else if (a.mrlStatus === 'CLEARING_SOON') {
-            measuredResidue = null;
-            drug = 'Oxytetracycline';
-          }
-          
-          const decision = calculateMRLCompliance({
-            animalId: a.id,
-            drug,
-            measuredResidue,
-            mrlLimit: 100,
-            testDate: new Date().toISOString(),
-            withdrawalStatus,
-            withdrawalDaysRemaining: 4
-          });
-
-          if (decision.status === 'COMPLIANT') mrlCompliant++;
-          else if (decision.status === 'NON-COMPLIANT' || decision.status === 'DO_NOT_SELL') mrlNonCompliant++;
-          else if (decision.status === 'PENDING') mrlPending++;
-        });
-
-        const mrlTotal = mrlCompliant + mrlNonCompliant + mrlPending;
-        const mrlPercentage = mrlTotal === 0 ? 100 : Math.round((mrlCompliant / mrlTotal) * 100);
-
-        const recentT = (treatments || []).slice(0, 5).map((t: any) => ({
-          id: t.animal?.tagNumber || t.animalId.substring(0, 8),
-          animalId: t.animalId,
-          medicine: t.drugName,
-          vet: t.veterinarianName,
-          date: new Date(t.administrationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-          status: new Date(t.withdrawalCompletionDate) > new Date() ? 'Active' : 'Completed'
-        }));
-
-        const wAlerts = (alerts || []).map((a: any) => {
-          const mappedTreatments = (a.treatments || []).map((t: any) => ({
-            animalId: a.id,
-            treatmentDate: t.administrationDate,
-            medicine: t.drugName,
-            withdrawalPeriodDays: t.withdrawalPeriod,
-          }));
-
-          const calc = calculateOverallWithdrawal(mappedTreatments);
-          const daysLeft = calc.daysRemaining;
-          
-          return {
-            id: a.tagNumber,
-            animalId: a.id,
-            drug: mappedTreatments[0]?.medicine || 'Unknown',
-            days: `${daysLeft} Days`,
-            priority: daysLeft <= 3 ? 'High' : (daysLeft <= 7 ? 'Medium' : 'Low')
-          };
-        });
-
-        setDashboardData({
-          stats: {
-            ...dashboardStats.stats,
-            veterinaryPrescriptions: 0
-          },
-          rawTreatments: dashboardTreatments,
-          livestockData,
-          recentTreatments: recentT,
-          withdrawalAlerts: wAlerts,
-          mrlCompliance: {
-            total: mrlTotal,
-            compliant: mrlCompliant,
-            nonCompliant: mrlNonCompliant,
-            pending: mrlPending,
-            percentage: mrlPercentage
-          }
-        });
+        setAnimals(Array.isArray(animalsData) ? animalsData : []);
+        setTreatments(Array.isArray(treatmentsData) ? treatmentsData : []);
+        setWithdrawalAlerts(Array.isArray(alertsData) ? alertsData : []);
+        setInventoryAlerts(invAlerts || { lowStock: [], expiringSoon: [] });
+        setVaccinations(Array.isArray(vaccsData) ? vaccsData : []);
+        setPrescriptions(Array.isArray(prescData) ? prescData : []);
+        setCompliance(compData);
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        console.error('Failed to load vet dashboard data:', error);
       } finally {
         setLoading(false);
       }
@@ -162,378 +59,418 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const amuChartData = React.useMemo(() => {
-    let filtered = dashboardData.rawTreatments;
-    
-    if (amuFilters.farm !== 'All Farms') {
-      filtered = filtered.filter(t => (t.animal?.farm?.name || t.animal?.farmId) === amuFilters.farm);
-    }
-    if (amuFilters.drug !== 'All Drugs') {
-      filtered = filtered.filter(t => t.drugName === amuFilters.drug);
-    }
-    if (amuFilters.species !== 'All Species') {
-      filtered = filtered.filter(t => (t.animal?.species || 'Unknown').toUpperCase() === amuFilters.species.toUpperCase());
-    }
-    if (amuFilters.period !== 'All Time') {
-      const now = new Date();
-      const limitDate = new Date();
-      if (amuFilters.period === 'Last 30 Days') limitDate.setDate(now.getDate() - 30);
-      else if (amuFilters.period === 'Last 6 Months') limitDate.setMonth(now.getMonth() - 6);
-      else if (amuFilters.period === 'Last Year') limitDate.setFullYear(now.getFullYear() - 1);
-      
-      filtered = filtered.filter(t => new Date(t.administrationDate) >= limitDate);
-    }
-    
-    const analytics = calculateAMU(filtered);
-    
-    // Convert byMonth to array and sort by month
-    const realData = Object.entries(analytics.byMonth)
-      .map(([month, data]) => ({
-        month,
-        amu: data.doseUnits,
-        treatments: data.treatments
-      }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-      
-    if (realData.length < 3) {
-      // Provide simple example data that forms a nice, smooth realistic trend
-      return [
-        { month: 'Jan', amu: 100, treatments: 12 },
-        { month: 'Feb', amu: 120, treatments: 15 },
-        { month: 'Mar', amu: 125, treatments: 16 },
-        { month: 'Apr', amu: 160, treatments: 21 },
-        { month: 'May', amu: 180, treatments: 24 },
-        { month: 'Jun', amu: 175, treatments: 23 },
-        { month: 'Jul', amu: 200, treatments: 26 }
-      ];
-    }
-    
-    return realData;
-  }, [dashboardData.rawTreatments, amuFilters]);
-
-  const filterOptions = React.useMemo(() => {
-    const farms = new Set<string>();
-    const drugs = new Set<string>();
-    const species = new Set<string>();
-    
-    dashboardData.rawTreatments.forEach(t => {
-      if (t.animal?.farm?.name || t.animal?.farmId) farms.add(t.animal?.farm?.name || t.animal?.farmId);
-      if (t.drugName) drugs.add(t.drugName);
-      if (t.animal?.species) species.add((t.animal.species).toUpperCase());
-    });
-    
-    return {
-      farms: ['All Farms', ...Array.from(farms)],
-      drugs: ['All Drugs', ...Array.from(drugs)],
-      species: ['All Species', ...Array.from(species)]
-    };
-  }, [dashboardData.rawTreatments]);
-
   if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
         <div className="text-center animate-pulse">
-          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-gray-900 text-lg font-bold">LivestoCare</h2>
-          <p className="text-gray-500 text-sm mt-1">Loading Dashboard...</p>
+          <div className="w-12 h-12 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-gray-900 text-lg font-bold">LivestoCare Veterinary</h2>
+          <p className="text-gray-500 text-sm mt-1">Loading Clinical Dashboard...</p>
         </div>
       </div>
     );
   }
 
+  const activeTreatmentsCount = treatments.filter(t => {
+    if (!t.withdrawalCompletionDate) return false;
+    return new Date(t.withdrawalCompletionDate) > new Date();
+  }).length;
+
+  const underWithdrawalCount = withdrawalAlerts.length;
+  const lowStockCount = inventoryAlerts?.lowStock?.length || 0;
+  const activePrescriptionsCount = prescriptions.filter(p => (p.status || 'ACTIVE').toUpperCase() === 'ACTIVE').length;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
-      {/* Dashboard Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Veterinarian Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Animal health, treatment and antimicrobial monitoring</p>
-      </div>
+      
+      {/* Header & Quick Action Banner */}
+      <div className="bg-gradient-to-r from-[#064E3B] to-[#047857] rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-semibold backdrop-blur-sm mb-2">
+            <Activity size={14} className="animate-pulse text-emerald-300" />
+            Veterinary Clinical Portal
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Welcome back, {user?.name || 'Dr. Veterinarian'}
+          </h1>
+          <p className="text-emerald-100 text-sm mt-1 max-w-2xl">
+            Monitor patient treatments, active food-safety withdrawal countdowns, and pharmacy medicine stock.
+          </p>
+        </div>
 
-      {/* KPI Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {[
-          { label: 'Animals Under Care', value: dashboardData.stats.totalAnimals.toString(), icon: PawPrint, trend: 'Total', up: true, color: 'text-blue-600', bg: 'bg-blue-50', link: '/veterinarian/animals' },
-          { label: 'Active Treatments', value: dashboardData.stats.underTreatment.toString(), icon: Syringe, trend: 'Currently Active', up: false, color: 'text-indigo-600', bg: 'bg-indigo-50', link: '/veterinarian/treatments' },
-          { label: 'Animals Under Withdrawal', value: dashboardData.stats.activeMrlAlerts.toString(), icon: AlertTriangle, trend: 'Active Alerts', up: false, color: 'text-amber-600', bg: 'bg-amber-50', link: '/veterinarian/withdrawal' },
-          { label: 'Pending Lab Tests', value: dashboardData.mrlCompliance.pending.toString(), icon: FileText, trend: 'Awaiting Results', up: true, color: 'text-cyan-600', bg: 'bg-cyan-50', link: '/veterinarian/laboratory' },
-          { label: 'MRL Issues', value: dashboardData.mrlCompliance.nonCompliant.toString(), icon: ShieldCheck, trend: 'Action Needed', up: false, color: 'text-red-600', bg: 'bg-red-50', link: '/veterinarian/mrl' },
-          { label: 'Pending Prescriptions', value: dashboardData.stats.veterinaryPrescriptions.toString(), icon: FileText, trend: 'To Review', up: true, color: 'text-purple-600', bg: 'bg-purple-50', link: '/veterinarian/prescriptions' }
-        ].map((kpi, idx) => (
-          <Link href={kpi.link || "#"} key={idx} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col justify-between hover:border-green-300 transition-colors cursor-pointer block">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{kpi.label}</span>
-              <div className={`p-1.5 rounded-lg ${kpi.bg} ${kpi.color}`}>
-                <kpi.icon size={16} />
-              </div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{kpi.value}</div>
-              <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${kpi.up ? 'text-green-600' : 'text-red-500'}`}>
-                {kpi.up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                <span>{kpi.trend}</span>
-              </div>
-            </div>
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/treatments/new"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#064E3B] hover:bg-emerald-50 rounded-xl font-bold text-sm shadow-md transition-all hover:scale-105"
+          >
+            <Syringe size={18} className="text-emerald-700" />
+            Record Treatment
           </Link>
-        ))}
-      </div>
-
-      {/* Main Analytics Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Chart 1: Antimicrobial Usage Trend */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm xl:col-span-1 lg:col-span-1 flex flex-col">
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-gray-900 mb-2">Antimicrobial Usage Trend</h2>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.period} onChange={(e) => setAmuFilters({...amuFilters, period: e.target.value})}>
-                {['All Time', 'Last 30 Days', 'Last 6 Months', 'Last Year'].map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.farm} onChange={(e) => setAmuFilters({...amuFilters, farm: e.target.value})}>
-                {filterOptions.farms.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.drug} onChange={(e) => setAmuFilters({...amuFilters, drug: e.target.value})}>
-                {filterOptions.drugs.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <select className="text-xs border border-gray-300 rounded p-1" value={amuFilters.species} onChange={(e) => setAmuFilters({...amuFilters, species: e.target.value})}>
-                {filterOptions.species.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="h-56 w-full mt-auto">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={amuChartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorAmu" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#15803D" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#15803D" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorTreatments" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '12px' }}
-                />
-                <Legend 
-                  verticalAlign="top" 
-                  height={36} 
-                  iconType="circle" 
-                  wrapperStyle={{ fontSize: '11px', color: '#4B5563' }} 
-                />
-                <Area type="monotone" dataKey="amu" name="Total Dose Units" stroke="#15803D" strokeWidth={3} fillOpacity={1} fill="url(#colorAmu)" activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }} dot={{ r: 4, fill: '#15803D', strokeWidth: 2, stroke: '#fff' }} />
-                <Area type="monotone" dataKey="treatments" name="Treatments Recorded" stroke="#2563EB" strokeWidth={3} fillOpacity={1} fill="url(#colorTreatments)" activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }} dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#fff' }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Chart 2: Patients by Species */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm xl:col-span-1 lg:col-span-1">
-          <div className="mb-2">
-            <h2 className="text-sm font-bold text-gray-900">Patients by Species</h2>
-            <p className="text-xs text-gray-500">Total: {dashboardData.stats.totalAnimals}</p>
-          </div>
-          <div className="h-56 w-full relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={dashboardData.livestockData}
-                  cx="50%"
-                  cy="45%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {dashboardData.livestockData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36} 
-                  iconType="circle" 
-                  wrapperStyle={{ fontSize: '11px', color: '#4B5563', paddingTop: '10px' }} 
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none flex flex-col items-center">
-              <div className="text-lg font-bold text-gray-900 leading-none">{dashboardData.stats.totalAnimals}</div>
-              <div className="text-[10px] text-gray-500 font-medium uppercase mt-1">Total</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Chart 3: MRL Compliance */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm xl:col-span-1 lg:col-span-2">
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-gray-900">MRL Compliance</h2>
-            <p className="text-xs text-gray-500">Current Status</p>
-          </div>
-          <div className="flex flex-col items-center justify-center h-52">
-            {/* Custom Circular Progress for Tailwind */}
-            <div className="relative w-32 h-32 mb-6">
-              <svg className="w-full h-full" viewBox="0 0 100 100">
-                <circle className="text-gray-100 stroke-current" strokeWidth="8" cx="50" cy="50" r="40" fill="transparent"></circle>
-                <circle className="text-green-600 progress-ring stroke-current" strokeWidth="8" strokeLinecap="round" cx="50" cy="50" r="40" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 * ((100 - dashboardData.mrlCompliance.percentage) / 100)} transform="rotate(-90 50 50)"></circle>
-              </svg>
-              <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-gray-900">{dashboardData.mrlCompliance.percentage}%</span>
-                <span className="text-[10px] uppercase font-bold text-green-600">Compliant</span>
-              </div>
-            </div>
-            
-            <div className="flex w-full justify-between px-6 text-xs font-medium text-gray-600 border-t border-gray-100 pt-4">
-              <div className="flex flex-col items-center">
-                <span className="text-gray-400 mb-1">Compliant</span>
-                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.compliant}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-gray-400 mb-1">Non-Compliant</span>
-                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.nonCompliant}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-gray-400 mb-1">Pending</span>
-                <span className="text-gray-900 font-bold">{dashboardData.mrlCompliance.pending}</span>
-              </div>
-            </div>
-          </div>
+          <Link
+            href="/prescriptions/new"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-800/80 hover:bg-emerald-800 text-white rounded-xl font-semibold text-sm border border-emerald-600/50 transition-colors"
+          >
+            <FileText size={18} />
+            New Prescription
+          </Link>
         </div>
       </div>
 
-      {/* Operational Section */}
+      {/* 4 Clinical KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <Link 
+          href="/veterinarian/animals"
+          className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all block group"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Animals Under Care</span>
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
+              <PawPrint size={20} />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-gray-900">{animals.length}</div>
+          <div className="text-xs text-gray-500 mt-1 flex items-center gap-1 font-medium">
+            <span>{animals.filter(a => a.status === 'HEALTHY').length} Healthy</span>
+            <span>•</span>
+            <span className="text-amber-600 font-semibold">{animals.filter(a => a.status === 'UNDER_TREATMENT').length} In Treatment</span>
+          </div>
+        </Link>
+
+        <Link 
+          href="/veterinarian/treatments"
+          className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all block group"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Treatments</span>
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+              <Syringe size={20} />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-gray-900">{activeTreatmentsCount}</div>
+          <div className="text-xs text-gray-500 mt-1 font-medium">
+            {treatments.length} Total recorded treatments
+          </div>
+        </Link>
+
+        <Link 
+          href="/veterinarian/withdrawal"
+          className="bg-white rounded-xl border border-amber-200 bg-amber-50/20 p-5 shadow-sm hover:border-amber-400 hover:shadow-md transition-all block group"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Withdrawal Locked</span>
+            <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 group-hover:scale-110 transition-transform">
+              <Clock size={20} />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-amber-900">{underWithdrawalCount}</div>
+          <div className="text-xs text-amber-700 font-semibold mt-1 flex items-center gap-1">
+            <AlertOctagon size={13} />
+            DO NOT SELL / MILK active
+          </div>
+        </Link>
+
+        <Link 
+          href="/veterinarian/inventory"
+          className={`bg-white rounded-xl border p-5 shadow-sm transition-all block group ${lowStockCount > 0 ? 'border-red-200 bg-red-50/20 hover:border-red-400' : 'border-gray-200 hover:border-emerald-400'}`}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pharmacy Alerts</span>
+            <div className={`p-2.5 rounded-xl group-hover:scale-110 transition-transform ${lowStockCount > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              <Package size={20} />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-gray-900">
+            {lowStockCount + (inventoryAlerts?.expiringSoon?.length || 0)}
+          </div>
+          <div className="text-xs mt-1 font-medium">
+            {lowStockCount > 0 ? (
+              <span className="text-red-600 font-semibold">{lowStockCount} Low stock medicines</span>
+            ) : (
+              <span className="text-emerald-700">Stock levels healthy</span>
+            )}
+          </div>
+        </Link>
+
+      </div>
+
+      {/* Main Grid: Live Food Safety Withdrawal Timers + Quick Links */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Recent Treatments */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-900">Recent Treatments</h3>
+        {/* Section 1: Active Withdrawal Countdown Timers (Takes 2 cols) */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></div>
+              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                Live Animals in Withdrawal (Food Safety Lock)
+              </h2>
+            </div>
+            <Link 
+              href="/veterinarian/withdrawal" 
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+            >
+              View All <ArrowRight size={13} />
+            </Link>
           </div>
+
+          <div className="divide-y divide-gray-100 flex-1">
+            {withdrawalAlerts.length === 0 ? (
+              <div className="p-8 text-center flex flex-col items-center justify-center">
+                <CheckCircle2 size={40} className="text-emerald-500 mb-2" />
+                <h3 className="text-sm font-bold text-gray-900">All Animals Cleared</h3>
+                <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                  No animals are currently under active withdrawal periods. All livestock milk and meat are compliant for sale.
+                </p>
+              </div>
+            ) : (
+              withdrawalAlerts.slice(0, 5).map((a, i) => {
+                const treatment = a.treatments?.[0];
+                const compDate = treatment?.withdrawalCompletionDate ? new Date(treatment.withdrawalCompletionDate) : new Date();
+                const diffMs = compDate.getTime() - new Date().getTime();
+                const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+                const isUrgent = daysLeft > 3;
+
+                return (
+                  <div key={i} className="p-4 hover:bg-gray-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <AlertTriangle size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Link href={`/animals/${a.id}`} className="font-bold text-sm text-gray-900 hover:text-emerald-700 hover:underline">
+                            {a.tagNumber} ({a.name})
+                          </Link>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-gray-100 text-gray-700">
+                            {a.species}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          Injected: <span className="font-semibold text-gray-800">{treatment?.drugName || 'Antibiotic'}</span> • Farm: {a.farm?.name || 'Local Farm'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 self-stretch sm:self-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-gray-900 flex items-center gap-1 justify-end">
+                          <Clock size={12} className={isUrgent ? 'text-red-500' : 'text-amber-500'} />
+                          {daysLeft > 0 ? `${daysLeft} days remaining` : 'Clearing Today'}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          Clears {compDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold shrink-0 ${
+                        isUrgent 
+                          ? 'bg-red-100 text-red-800 border border-red-200' 
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {isUrgent ? 'DO NOT SELL' : 'CLEARING SOON'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Section 2: Quick Tools & Reference (1 col) */}
+        <div className="space-y-6">
+          
+          {/* Quick Veterinary Actions */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+              Veterinary Tools
+            </h3>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Link 
+                href="/treatments/new" 
+                className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <Syringe size={16} />
+                </div>
+                <span className="text-xs font-bold text-gray-800">Record Treatment</span>
+              </Link>
+
+              <Link 
+                href="/prescriptions/new" 
+                className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"
+              >
+                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <FileText size={16} />
+                </div>
+                <span className="text-xs font-bold text-gray-800">New Prescription</span>
+              </Link>
+
+              <Link 
+                href="/veterinarian/inventory" 
+                className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <Package size={16} />
+                </div>
+                <span className="text-xs font-bold text-gray-800">Medicine Pharmacy</span>
+              </Link>
+
+              <Link 
+                href="/veterinarian/drug-reference" 
+                className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <Pill size={16} />
+                </div>
+                <span className="text-xs font-bold text-gray-800">Drug Reference</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Pharmacy Low Stock Watchlist */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Package size={14} className="text-emerald-700" />
+                Pharmacy Medicine Alerts
+              </h3>
+              <Link href="/veterinarian/inventory" className="text-xs font-bold text-emerald-700 hover:underline">
+                Manage
+              </Link>
+            </div>
+
+            {inventoryAlerts.lowStock && inventoryAlerts.lowStock.length > 0 ? (
+              <div className="space-y-2.5">
+                {inventoryAlerts.lowStock.slice(0, 3).map((item, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-red-50/60 border border-red-100 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="font-bold text-gray-900">{item.medicineName}</div>
+                      <div className="text-red-700 font-semibold mt-0.5">Stock: {item.stock} / min {item.minimumStock}</div>
+                    </div>
+                    <Link href="/veterinarian/inventory" className="px-2 py-1 bg-white border border-red-200 text-red-700 rounded font-bold text-[10px] hover:bg-red-50">
+                      Restock
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 py-3 text-center bg-gray-50 rounded-lg">
+                No low stock alerts. All medicine supplies are adequate.
+              </div>
+            )}
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Section 3: Recent Treatments Log + Upcoming Vaccinations */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Recent Treatments Table (2 cols) */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+              Recent Clinical Treatments
+            </h2>
+            <Link 
+              href="/veterinarian/treatments" 
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+            >
+              All Treatments <ArrowRight size={13} />
+            </Link>
+          </div>
+
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs text-gray-600">
-              <thead className="bg-gray-50 text-gray-400 uppercase font-semibold text-[10px]">
+              <thead className="bg-gray-50 text-gray-400 uppercase font-semibold text-[10px] border-b border-gray-100">
                 <tr>
-                  <th className="px-4 py-2.5">Animal ID</th>
+                  <th className="px-4 py-2.5">Animal</th>
                   <th className="px-4 py-2.5">Medicine</th>
-                  <th className="px-4 py-2.5">Veterinarian</th>
+                  <th className="px-4 py-2.5">Dosage</th>
                   <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Withdrawal</th>
                   <th className="px-4 py-2.5 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {dashboardData.recentTreatments.map((t, i) => (
-                  <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-900"><Link href={`/veterinarian/animals?id=${t.animalId}`} className="hover:text-green-700 hover:underline">{t.id}</Link></td>
-                    <td className="px-4 py-3">{t.medicine}</td>
-                    <td className="px-4 py-3">{t.vet}</td>
-                    <td className="px-4 py-3">{t.date}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                        t.status === 'Active' ? 'bg-[#DCFCE7] text-[#166534]' : 
-                        t.status === 'Completed' ? 'bg-[#DBEAFE] text-[#1D4ED8]' : 
-                        t.status === 'Pending' ? 'bg-[#FFEDD5] text-[#C2410C]' : 
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {t.status}
-                      </span>
+                {treatments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                      No recent treatments recorded.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  treatments.slice(0, 6).map((t, i) => {
+                    const compDate = t.withdrawalCompletionDate ? new Date(t.withdrawalCompletionDate) : null;
+                    const isActive = compDate && compDate > new Date();
+
+                    return (
+                      <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3 font-bold text-gray-900">
+                          <Link href={`/animals/${t.animalId}`} className="hover:text-emerald-700 hover:underline">
+                            {t.animal?.tagNumber || t.animalId?.substring(0, 8)}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-800">{t.drugName || t.medicine}</td>
+                        <td className="px-4 py-3 text-gray-600">{t.dosage}</td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {t.administrationDate ? new Date(t.administrationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {t.withdrawalPeriod ? `${t.withdrawalPeriod} days` : 'None'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                            isActive ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isActive ? 'In Withdrawal' : 'Cleared'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Withdrawal Alerts */}
+        {/* Upcoming Vaccinations (1 col) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-900">Withdrawal Alerts</h3>
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar size={15} className="text-purple-600" />
+              Vaccinations Due
+            </h2>
+            <Link href="/veterinarian/animals" className="text-xs font-bold text-emerald-700 hover:underline">
+              View All
+            </Link>
           </div>
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead className="bg-gray-50 text-gray-400 uppercase font-semibold text-[10px]">
-                <tr>
-                  <th className="px-4 py-2.5">Animal ID</th>
-                  <th className="px-4 py-2.5">Drug</th>
-                  <th className="px-4 py-2.5">Days Left</th>
-                  <th className="px-4 py-2.5 text-right">Priority</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {dashboardData.withdrawalAlerts.map((w, i) => (
-                  <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-900"><Link href={`/veterinarian/animals?id=${w.animalId}`} className="hover:text-green-700 hover:underline">{w.id}</Link></td>
-                    <td className="px-4 py-3">{w.drug}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{w.days}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                        w.priority === 'High' ? 'bg-[#FEE2E2] text-[#B91C1C]' :
-                        w.priority === 'Medium' ? 'bg-[#FFEDD5] text-[#C2410C]' :
-                        w.priority === 'Low' ? 'bg-[#DCFCE7] text-[#166534]' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {w.priority}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="divide-y divide-gray-100 flex-1">
+            {vaccinations.length === 0 ? (
+              <div className="p-6 text-center text-xs text-gray-400">
+                No upcoming vaccinations scheduled.
+              </div>
+            ) : (
+              vaccinations.slice(0, 5).map((v, i) => (
+                <div key={i} className="p-3.5 hover:bg-gray-50/60 transition-colors flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-gray-900">{v.animal?.name || v.animal?.tagNumber || 'Animal'}</div>
+                    <div className="text-gray-500 text-[11px] mt-0.5">{v.vaccineName}</div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[11px]">
+                    {v.nextDueDate ? new Date(v.nextDueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Soon'}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-900">Quick Actions</h3>
-          </div>
-          <div className="p-4 grid grid-cols-2 gap-3 flex-1 content-start">
-            <Link href="/treatments/new" className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-gray-700 hover:text-green-700 group text-center">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-green-100 mb-2 transition-colors">
-                <Pill size={18} />
-              </div>
-              <span className="text-xs font-semibold">Record Treatment</span>
-            </Link>
-            <Link href="/prescriptions/new" className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-gray-700 hover:text-green-700 group text-center">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-green-100 mb-2 transition-colors">
-                <ClipboardList size={18} />
-              </div>
-              <span className="text-xs font-semibold">Add Prescription</span>
-            </Link>
-            <Link href="/lab" className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-gray-700 hover:text-green-700 group text-center">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-green-100 mb-2 transition-colors">
-                <FlaskConical size={18} />
-              </div>
-              <span className="text-xs font-semibold">Request Lab Test</span>
-            </Link>
-            <Link href="/veterinarian/animals" className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-gray-700 hover:text-green-700 group text-center">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-green-100 mb-2 transition-colors">
-                <PawPrint size={18} />
-              </div>
-              <span className="text-xs font-semibold">View Animals</span>
-            </Link>
-          </div>
-        </div>
-
-      </div>
-
-      {/* System Status */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity size={16} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-900">System Status</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-          </span>
-          <span className="text-xs font-medium text-gray-600">All Systems Operational</span>
-        </div>
       </div>
 
     </div>

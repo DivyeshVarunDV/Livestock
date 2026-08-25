@@ -45,6 +45,31 @@ export class TreatmentService {
       withdrawalCompletionDate.getDate() + withdrawalPeriod,
     );
 
+    // Inventory check
+    if (dto.inventoryId) {
+      const inventory = await this.prisma.inventory.findUnique({
+        where: { id: dto.inventoryId },
+      });
+      if (inventory && inventory.stock > 0) {
+        const newStock = inventory.stock - 1;
+        await this.prisma.inventory.update({
+          where: { id: dto.inventoryId },
+          data: { stock: newStock },
+        });
+        if (newStock <= inventory.minimumStock) {
+          await this.prisma.notification.create({
+            data: {
+              title: 'Low Stock Alert',
+              message: `Low stock alert: ${inventory.medicineName} is running low (${newStock} remaining)`,
+              type: 'WARNING',
+            },
+          });
+        }
+      } else {
+        console.warn(`Warning: Inventory item ${dto.inventoryId} not found or out of stock.`);
+      }
+    }
+
     // Create the treatment record
     const treatment = await this.prisma.treatment.create({
       data: {
@@ -188,8 +213,62 @@ export class TreatmentService {
     }
   }
 
+  async updateAnimalMrlStatuses() {
+    const now = new Date();
+    const animals = await this.prisma.animal.findMany({
+      where: { mrlStatus: { not: 'CLEARED' } },
+    });
+
+    for (const animal of animals) {
+      const treatments = await this.prisma.treatment.findMany({
+        where: { animalId: animal.id },
+        orderBy: { withdrawalCompletionDate: 'desc' },
+      });
+
+      if (treatments.length === 0) {
+        await this.prisma.animal.update({
+          where: { id: animal.id },
+          data: { mrlStatus: 'CLEARED', status: 'HEALTHY' },
+        });
+        continue;
+      }
+
+      const latestCompletion = new Date(treatments[0].withdrawalCompletionDate);
+      const allPast = treatments.every((t) => new Date(t.withdrawalCompletionDate) <= now);
+
+      let newMrlStatus = animal.mrlStatus;
+      let newStatus = animal.status;
+
+      if (allPast) {
+        newMrlStatus = 'CLEARED';
+        newStatus = 'HEALTHY';
+      } else {
+        const diffMs = latestCompletion.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        if (diffDays <= 3 && diffDays > 0) {
+          newMrlStatus = 'CLEARING_SOON';
+          newStatus = 'UNDER_TREATMENT';
+        } else if (diffDays <= 0) {
+          newMrlStatus = 'CLEARED';
+          newStatus = 'HEALTHY';
+        } else {
+          newMrlStatus = 'DO_NOT_SELL';
+          newStatus = 'UNDER_TREATMENT';
+        }
+      }
+
+      if (newMrlStatus !== animal.mrlStatus || newStatus !== animal.status) {
+        await this.prisma.animal.update({
+          where: { id: animal.id },
+          data: { mrlStatus: newMrlStatus, status: newStatus },
+        });
+      }
+    }
+  }
+
   // Get active alerts for the dashboard
   async getActiveMrlAlerts() {
+    await this.updateAnimalMrlStatuses();
     return this.prisma.animal.findMany({
       where: {
         mrlStatus: {

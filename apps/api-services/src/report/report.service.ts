@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { TreatmentService } from '../treatment/treatment.service';
 
 @Injectable()
 export class ReportService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private treatmentService: TreatmentService,
+  ) {}
 
   async getHealthReport() {
     const totalAnimals = await this.prisma.animal.count();
@@ -95,6 +99,7 @@ export class ReportService {
   }
 
   async getMrlComplianceReport() {
+    await this.treatmentService.updateAnimalMrlStatuses();
     const mrlCounts = await this.prisma.animal.groupBy({
       by: ['mrlStatus'],
       _count: true,
@@ -116,6 +121,7 @@ export class ReportService {
   }
 
   async getDashboardStats() {
+    await this.treatmentService.updateAnimalMrlStatuses();
     const totalFarms = await this.prisma.farm.count();
     const totalAnimals = await this.prisma.animal.count();
     const underTreatment = await this.prisma.animal.count({
