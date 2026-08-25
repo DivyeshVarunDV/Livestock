@@ -33,7 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
         <div className="text-center animate-pulse">
           <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-gray-900 text-lg font-bold">AgriShield</h2>
+          <h2 className="text-gray-900 text-lg font-bold">LivestoCare</h2>
           <p className="text-gray-500 text-sm mt-1">Digital Farm Management &amp; MRL Compliance</p>
         </div>
       </div>

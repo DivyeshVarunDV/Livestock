@@ -11,7 +11,13 @@ export default function RootPage() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.push('/dashboard');
+        if (user.role === 'admin') {
+          router.push('/admin/dashboard');
+        } else if (user.role === 'veterinarian') {
+          router.push('/veterinarian/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
       } else {
         router.push('/login');
       }

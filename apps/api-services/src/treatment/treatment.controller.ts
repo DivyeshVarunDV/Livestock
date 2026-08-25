@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { TreatmentService } from './treatment.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateTreatmentDto } from './dto/create-treatment.dto';
 
 @Controller('treatments')
 @UseGuards(JwtAuthGuard)
@@ -31,6 +32,11 @@ export class TreatmentController {
     return this.treatmentService.getMrlRules();
   }
 
+  @Post('update-statuses')
+  async updateStatuses() {
+    return this.treatmentService.updateAnimalMrlStatuses();
+  }
+
   @Post('rules')
   async createMrlRule(@Body() dto: any) {
     return this.treatmentService.createMrlRule(dto);
@@ -42,7 +48,7 @@ export class TreatmentController {
   }
 
   @Post()
-  async create(@Body() dto: any) {
+  async create(@Body() dto: CreateTreatmentDto) {
     return this.treatmentService.create(dto);
   }
 

@@ -22,7 +22,7 @@ export default function WithdrawalPage() {
       try {
         const res = await apiFetch('/treatments');
         // Only keep treatments that have a withdrawal period
-        const withdrawalRecords = (res || []).filter((t: any) => t.withdrawalPeriodDays > 0);
+        const withdrawalRecords = (res || []).filter((t: any) => (t.withdrawalPeriod || t.withdrawalPeriodDays || 0) > 0);
         setTreatments(withdrawalRecords);
       } catch (err) {
         console.error('Failed to load withdrawal records', err);
@@ -34,7 +34,13 @@ export default function WithdrawalPage() {
   }, []);
 
   const enrichRecord = (t: any) => {
-    const calc = calculateWithdrawal(t.treatmentDate, t.withdrawalPeriodDays);
+    const adminDate = t.administrationDate || t.treatmentDate;
+    const periodDays = Number(t.withdrawalPeriod || t.withdrawalPeriodDays || 0);
+    const drug = t.drugName || t.medicine || 'Unknown Drug';
+    const animalTag = t.animal?.tagNumber || t.animal?.name || t.animalId || 'N/A';
+    const farmName = t.animal?.farm?.name || t.farm?.name || 'Local Farm';
+
+    const calc = calculateWithdrawal(adminDate, periodDays);
     const daysRemaining = calc.daysRemaining;
     
     // Map ENGINE status to UI status
@@ -50,21 +56,32 @@ export default function WithdrawalPage() {
       priority = 'High';
     }
 
-    return { ...t, daysRemaining, withdrawalStatus: status, priority };
+    return { 
+      ...t, 
+      daysRemaining, 
+      withdrawalStatus: status, 
+      priority,
+      adminDate,
+      periodDays,
+      drug,
+      animalTag,
+      farmName
+    };
   };
 
   const enrichedTreatments = treatments.map(enrichRecord);
 
-  const uniqueFarms = Array.from(new Set(enrichedTreatments.map(t => t.farm?.name).filter(Boolean)));
+  const uniqueFarms = Array.from(new Set(enrichedTreatments.map(t => t.farmName).filter(Boolean)));
   const uniquePriorities = ['High', 'Medium', 'Low'];
   const uniqueStatuses = ['Active', 'Due Soon', 'Cleared'];
 
   const filteredRecords = enrichedTreatments.filter(t => {
     const matchSearch = 
+      t.animalTag?.toLowerCase().includes(search.toLowerCase()) || 
       t.animalId?.toLowerCase().includes(search.toLowerCase()) || 
-      t.medicine?.toLowerCase().includes(search.toLowerCase());
+      t.drug?.toLowerCase().includes(search.toLowerCase());
     
-    const matchFarm = farmFilter ? t.farm?.name === farmFilter : true;
+    const matchFarm = farmFilter ? t.farmName === farmFilter : true;
     const matchPriority = priorityFilter ? t.priority === priorityFilter : true;
     const matchStatus = statusFilter ? t.withdrawalStatus === statusFilter : true;
     
@@ -188,17 +205,22 @@ export default function WithdrawalPage() {
                         const isMedium = t.priority === 'Medium';
                         const isCleared = t.withdrawalStatus === 'Cleared';
 
-                        const endDate = t.treatmentDate && t.withdrawalPeriodDays 
-                          ? new Date(new Date(t.treatmentDate).getTime() + t.withdrawalPeriodDays * 24 * 60 * 60 * 1000)
+                        const endDate = t.adminDate && t.periodDays 
+                          ? new Date(new Date(t.adminDate).getTime() + t.periodDays * 24 * 60 * 60 * 1000)
                           : null;
 
                         return (
                           <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                            <td className="p-4 font-bold text-gray-900 align-middle">{t.animalId || 'N/A'}</td>
-                            <td className="p-4 font-medium text-gray-800 align-middle">{t.farm?.name || 'N/A'}</td>
-                            <td className="p-4 font-medium text-gray-800 align-middle">{t.medicine || 'N/A'}</td>
+                            <td className="p-4 font-bold text-gray-900 align-middle">
+                              <span className="font-bold text-emerald-800">{t.animalTag}</span>
+                              {t.animalId && t.animalId !== t.animalTag && (
+                                <span className="block text-xs text-gray-400 font-normal">{t.animalId.substring(0, 8)}</span>
+                              )}
+                            </td>
+                            <td className="p-4 font-medium text-gray-800 align-middle">{t.farmName}</td>
+                            <td className="p-4 font-semibold text-gray-800 align-middle">{t.drug}</td>
                             <td className="p-4 align-middle text-gray-700">
-                              {t.treatmentDate ? new Date(t.treatmentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                              {t.adminDate ? new Date(t.adminDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                             </td>
                             <td className="p-4 align-middle text-gray-700">
                               {endDate ? endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}

@@ -5,19 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
-  LayoutDashboard, PawPrint, Tractor, HeartPulse, ShieldCheck, BarChart3,
+  LayoutDashboard, PawPrint, Tractor, Syringe, Clock, HeartPulse, ShieldCheck, BarChart3,
   Bell, LogOut, User, Settings, Users, ClipboardList, Menu, X, ChevronDown,
-  Leaf
+  Shield, Package, Pill, FileText
 } from 'lucide-react';
-
-const mainNavItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Livestock', href: '/livestock', icon: PawPrint },
-  { name: 'Farms', href: '/farms', icon: Tractor },
-  { name: 'Health', href: '/health', icon: HeartPulse },
-  { name: 'Compliance', href: '/compliance', icon: ShieldCheck },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
-];
 
 export default function TopNavbar() {
   const { user, logout } = useAuth();
@@ -27,6 +18,36 @@ export default function TopNavbar() {
   const profileRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === 'admin';
+  const isVet = user?.role === 'veterinarian';
+
+  const homePath = isAdmin
+    ? '/admin/dashboard'
+    : isVet
+      ? '/veterinarian/dashboard'
+      : '/dashboard';
+
+  const vetNavItems = [
+    { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
+    { name: 'Animals', href: '/veterinarian/animals', icon: PawPrint },
+    { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
+    { name: 'Withdrawal Timers', href: '/veterinarian/withdrawal', icon: Clock },
+    { name: 'Pharmacy Inventory', href: '/veterinarian/inventory', icon: Package },
+    { name: 'Prescriptions', href: '/veterinarian/prescriptions', icon: FileText },
+    { name: 'Drug Reference', href: '/veterinarian/drug-reference', icon: Pill },
+  ];
+
+  const adminNavItems = [
+    { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Farms', href: '/farms', icon: Tractor },
+    { name: 'Animals', href: '/animals', icon: PawPrint },
+    { name: 'Treatments', href: '/treatments', icon: Syringe },
+    { name: 'Withdrawal', href: '/withdrawal', icon: Clock },
+    { name: 'MRL Compliance', href: '/mrl', icon: ShieldCheck },
+    { name: 'Inventory', href: '/inventory', icon: Package },
+    { name: 'Reports', href: '/reports', icon: BarChart3 },
+  ];
+
+  const mainNavItems = isVet ? vetNavItems : adminNavItems;
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -44,7 +65,9 @@ export default function TopNavbar() {
   }, [pathname]);
 
   function isActive(href: string) {
-    if (href === '/dashboard') return pathname === '/dashboard';
+    if (href === homePath || href === '/dashboard' || href === '/admin/dashboard' || href === '/veterinarian/dashboard') {
+      return pathname === '/dashboard' || pathname === '/admin/dashboard' || pathname === '/veterinarian/dashboard';
+    }
     return pathname.startsWith(href);
   }
 
@@ -56,13 +79,13 @@ export default function TopNavbar() {
             {/* Left: Logo + Nav */}
             <div className="flex items-center gap-6 lg:gap-8">
               {/* Logo */}
-              <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
+              <Link href={homePath} className="flex items-center gap-2.5 shrink-0 group">
                 <div className="w-8 h-8 bg-white/15 backdrop-blur-sm rounded-lg flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                  <Leaf size={18} className="text-emerald-300" />
+                  <Shield size={18} className="text-emerald-300" />
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-[16px] font-bold text-white tracking-tight">AgriShield</span>
-                  <span className="block text-[9px] text-emerald-300/80 font-medium -mt-0.5 tracking-wider uppercase">Farm Compliance</span>
+                  <span className="text-[16px] font-bold text-white tracking-tight">Livesto<span className="text-[#39A852]">Care</span></span>
+                  <span className="block text-[9px] text-emerald-300/80 font-medium -mt-0.5 tracking-wider uppercase">Farm &amp; MRL Compliance</span>
                 </div>
               </Link>
 

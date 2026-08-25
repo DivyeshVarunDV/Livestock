@@ -21,7 +21,9 @@ import {
   Activity,
   Bell,
   User as UserIcon,
-  Stethoscope
+  Stethoscope,
+  Package,
+  Pill
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
@@ -91,20 +93,21 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
 
   const vetNavItems = [
     { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
-    { name: 'My Animals', href: '/veterinarian/animals', icon: PawPrint },
+    { name: 'Animals', href: '/veterinarian/animals', icon: PawPrint },
     { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
+    { name: 'Withdrawal Timers', href: '/veterinarian/withdrawal', icon: Clock },
+    { name: 'Pharmacy Inventory', href: '/veterinarian/inventory', icon: Package },
     { name: 'Prescriptions', href: '/veterinarian/prescriptions', icon: FileText },
-    { name: 'Withdrawal Monitoring', href: '/veterinarian/withdrawal', icon: Clock },
-    { name: 'MRL & Compliance', href: '/veterinarian/mrl', icon: ShieldCheck },
-    { name: 'Laboratory', href: '/veterinarian/laboratory', icon: FlaskConical },
-    { name: 'AMU Monitoring', href: '/veterinarian/amu', icon: Activity },
-    { name: 'Health Records', href: '/veterinarian/health-records', icon: Stethoscope },
-    { name: 'Alerts', href: '/veterinarian/alerts', icon: Bell },
-    { name: 'Reports', href: '/veterinarian/reports', icon: BarChart3 },
-    { name: 'My Profile', href: '/veterinarian/profile', icon: UserIcon },
+    { name: 'Drug Reference', href: '/veterinarian/drug-reference', icon: Pill },
   ];
 
   const navItems = user?.role === 'veterinarian' ? vetNavItems : adminNavItems;
+
+  const homePath = user?.role === 'admin'
+    ? '/admin/dashboard'
+    : user?.role === 'veterinarian'
+      ? '/veterinarian/dashboard'
+      : '/dashboard';
 
   return (
     <>
@@ -119,15 +122,19 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
       <aside 
         className={`fixed inset-y-0 left-0 z-50 flex flex-col w-[240px] bg-[#064E3B] text-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="flex items-center gap-3 px-5 py-6 border-b border-white/10">
+        <Link 
+          href={homePath}
+          onClick={() => setIsOpen(false)}
+          className="flex items-center gap-3 px-5 py-6 border-b border-white/10 hover:bg-white/5 transition-colors cursor-pointer"
+        >
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 text-emerald-400">
             <Shield size={20} />
           </div>
           <div>
-            <h1 className="text-[15px] font-bold leading-tight">LivestoCare</h1>
+            <h1 className="text-[15px] font-bold leading-tight">Livesto<span className="text-[#39A852]">Care</span></h1>
             <p className="text-[10px] text-emerald-100 font-medium leading-tight mt-0.5">Digital Farm Management &amp;<br/>MRL Compliance</p>
           </div>
-        </div>
+        </Link>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => {
