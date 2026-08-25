@@ -166,15 +166,15 @@ model Notification {
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
-  userEmail String
-  userName  String
-  role      String
+  userEmail String?
+  userName  String?
+  role      String?
   action    String // CREATE, UPDATE, DELETE, LOGIN, etc.
   entity    String // FARM, ANIMAL, TREATMENT, USER, SYSTEM, etc.
   entityId  String?
   oldValue  String?
   newValue  String?
-  ipAddress String   @default("127.0.0.1")
+  ipAddress String?  @default("127.0.0.1")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

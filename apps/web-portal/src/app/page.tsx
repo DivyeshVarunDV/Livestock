@@ -10,10 +10,8 @@ export default function RootPage() {
 
   useEffect(() => {
     if (!loading) {
-      if (user?.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else if (user?.role === 'veterinarian') {
-        router.push('/veterinarian/dashboard');
+      if (user) {
+        router.push('/dashboard');
       } else {
         router.push('/login');
       }
@@ -24,7 +22,7 @@ export default function RootPage() {
     <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
       <div className="text-center animate-pulse">
         <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <h2 className="text-gray-900 text-lg font-bold">Loading Workspace...</h2>
+        <h2 className="text-gray-900 text-lg font-bold">Loading...</h2>
       </div>
     </div>
   );
