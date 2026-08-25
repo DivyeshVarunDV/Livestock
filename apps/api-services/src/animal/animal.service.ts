@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -32,20 +32,27 @@ export class AnimalService {
   }
 
   async create(dto: any) {
-    return this.prisma.animal.create({
-      data: {
-        tagNumber: dto.tagNumber,
-        name: dto.name,
-        species: dto.species,
-        breed: dto.breed,
-        gender: dto.gender,
-        age: Number(dto.age),
-        weight: Number(dto.weight),
-        status: dto.status || 'HEALTHY',
-        mrlStatus: dto.mrlStatus || 'CLEARED',
-        farmId: dto.farmId,
-      },
-    });
+    try {
+      return await this.prisma.animal.create({
+        data: {
+          tagNumber: dto.tagNumber,
+          name: dto.name,
+          species: dto.species,
+          breed: dto.breed,
+          gender: dto.gender,
+          age: Number(dto.age),
+          weight: Number(dto.weight),
+          status: dto.status || 'HEALTHY',
+          mrlStatus: dto.mrlStatus || 'CLEARED',
+          farmId: dto.farmId,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('An animal with this Tag Number already exists.');
+      }
+      throw error;
+    }
   }
 
   async update(id: string, dto: any) {

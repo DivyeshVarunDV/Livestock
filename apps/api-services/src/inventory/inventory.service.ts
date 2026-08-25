@@ -63,9 +63,9 @@ export class InventoryService {
 
   async getAlerts() {
     const all = await this.findAll();
-    const lowStock = all.filter((i) => i.stock <= i.minimumStock);
+    const lowStock = all.filter((i: any) => i.stock <= i.minimumStock);
     const expiringSoon = all.filter(
-      (i) =>
+      (i: any) =>
         new Date(i.expiryDate).getTime() - Date.now() <
         1000 * 60 * 60 * 24 * 30,
     );

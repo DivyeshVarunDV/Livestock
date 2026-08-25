@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join('E:', 'Code', 'Livestock', 'apps', 'web-portal', 'src', 'app', 'page.tsx');
+const filePath = path.join(__dirname, 'apps', 'web-portal', 'src', 'app', 'page.tsx');
 let content = fs.readFileSync(filePath, 'utf8');
 
 // 1. Add imports

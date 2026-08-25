@@ -181,9 +181,9 @@ export default function LivestockProfilePage() {
                     {animal.healthRecords.map((hr: any) => (
                       <tr key={hr.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(hr.date).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hr.diagnosis}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hr.diseases?.join(', ')}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hr.veterinarianName}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{hr.diagnosis}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{hr.diseases}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{hr.veterinarianName}</td>
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{hr.notes}</td>
                       </tr>
                     ))}
