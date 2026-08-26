@@ -5,17 +5,26 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Clearing database...');
+  await prisma.violation.deleteMany({});
+  await prisma.milkTest.deleteMany({});
+  await prisma.milkCollection.deleteMany({});
+  await prisma.ownershipTransfer.deleteMany({});
+  await prisma.withdrawalRecord.deleteMany({});
+  await prisma.amuRecord.deleteMany({});
   await prisma.treatment.deleteMany({});
   await prisma.vaccination.deleteMany({});
   await prisma.healthRecord.deleteMany({});
   await prisma.animal.deleteMany({});
   await prisma.farm.deleteMany({});
   await prisma.mrlRule.deleteMany({});
+  await prisma.auditLog.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.prescription.deleteMany({});
   await prisma.user.deleteMany({});
 
   console.log('Seeding users...');
   const passwordHash = await bcrypt.hash('password123', 10);
-  
+
   const admin = await prisma.user.create({
     data: {
       email: 'admin@livestocare.local',
@@ -34,6 +43,15 @@ async function main() {
     },
   });
 
+  const tester = await prisma.user.create({
+    data: {
+      email: 'tester@livestocare.local',
+      passwordHash: await bcrypt.hash('Tester@12345', 10),
+      name: 'Testing Officer',
+      role: 'TESTER',
+    },
+  });
+
   const farmer = await prisma.user.create({
     data: {
       email: 'farmer@agrishield.com',
@@ -47,22 +65,38 @@ async function main() {
   const farm1 = await prisma.farm.create({
     data: {
       name: 'Green Meadows Farm',
+      farmerId: 'FARM001',
       ownerId: farmer.id,
       ownerName: farmer.name,
+      fullName: 'John Miller',
+      mobileNumber: '+1-555-0199',
+      governmentId: 'AP-FARM-001',
       address: '102 Rural Route 4, Greenfield',
+      village: 'Greenfield',
+      district: 'Krishna',
+      state: 'Andhra Pradesh',
       contactNumber: '+1-555-0199',
       location: '45.3842, -75.6981',
+      status: 'ACTIVE',
     },
   });
 
   const farm2 = await prisma.farm.create({
     data: {
       name: 'Sunrise Dairies',
+      farmerId: 'FARM002',
       ownerId: farmer.id,
       ownerName: farmer.name,
+      fullName: 'John Miller',
+      mobileNumber: '+1-555-0244',
+      governmentId: 'AP-FARM-002',
       address: '405 Valley Road, Sunrise Crest',
+      village: 'Sunrise Crest',
+      district: 'Guntur',
+      state: 'Andhra Pradesh',
       contactNumber: '+1-555-0244',
       location: '45.4215, -75.6972',
+      status: 'ACTIVE',
     },
   });
 
@@ -78,24 +112,20 @@ async function main() {
 
   console.log('Seeding animals...');
   const now = new Date();
-
-  // Helper to subtract days
   const subDays = (date: Date, days: number) => {
     const res = new Date(date);
     res.setDate(res.getDate() - days);
     return res;
   };
-
-  // Helper to add days
   const addDays = (date: Date, days: number) => {
     const res = new Date(date);
     res.setDate(res.getDate() + days);
     return res;
   };
 
-  // Animal 1: Cow with active treatment (DO NOT SELL)
   const cow1 = await prisma.animal.create({
     data: {
+      animalCode: 'COW001',
       tagNumber: 'IND-492-B',
       name: 'Daisy',
       species: 'CATTLE',
@@ -103,15 +133,18 @@ async function main() {
       gender: 'FEMALE',
       age: 28,
       weight: 580,
+      color: 'Black & White',
+      identificationMark: 'Right ear notch',
+      currentStatus: 'ACTIVE',
       status: 'UNDER_TREATMENT',
       mrlStatus: 'DO_NOT_SELL',
       farmId: farm1.id,
     },
   });
 
-  // Animal 2: Cow clearing soon
   const cow2 = await prisma.animal.create({
     data: {
+      animalCode: 'COW002',
       tagNumber: 'IND-811-A',
       name: 'Bella',
       species: 'CATTLE',
@@ -119,54 +152,26 @@ async function main() {
       gender: 'FEMALE',
       age: 32,
       weight: 490,
+      color: 'Brown',
+      currentStatus: 'ACTIVE',
       status: 'UNDER_TREATMENT',
       mrlStatus: 'CLEARING_SOON',
       farmId: farm1.id,
     },
   });
 
-  // Animal 3: Cleared Pig
-  const pig1 = await prisma.animal.create({
+  const cow3 = await prisma.animal.create({
     data: {
+      animalCode: 'COW003',
       tagNumber: 'IND-322-C',
-      name: 'Penny',
-      species: 'PIG',
-      breed: 'Duroc',
+      name: 'Luna',
+      species: 'CATTLE',
+      breed: 'Gir',
       gender: 'FEMALE',
-      age: 8,
-      weight: 110,
-      status: 'HEALTHY',
-      mrlStatus: 'CLEARED',
-      farmId: farm2.id,
-    },
-  });
-
-  // Animal 4: Healthy Sheep
-  const sheep1 = await prisma.animal.create({
-    data: {
-      tagNumber: 'IND-105-D',
-      name: 'Shaun',
-      species: 'SHEEP',
-      breed: 'Merino',
-      gender: 'MALE',
-      age: 18,
-      weight: 75,
-      status: 'HEALTHY',
-      mrlStatus: 'CLEARED',
-      farmId: farm2.id,
-    },
-  });
-
-  // Animal 5: Healthy Goat
-  const goat1 = await prisma.animal.create({
-    data: {
-      tagNumber: 'IND-208-E',
-      name: 'Sheru',
-      species: 'GOAT',
-      breed: 'Beetal',
-      gender: 'MALE',
-      age: 14,
-      weight: 45,
+      age: 24,
+      weight: 430,
+      color: 'Red',
+      currentStatus: 'ACTIVE',
       status: 'HEALTHY',
       mrlStatus: 'CLEARED',
       farmId: farm1.id,
@@ -178,8 +183,12 @@ async function main() {
     data: [
       {
         animalId: cow1.id,
+        recordCode: 'HR001',
         diseases: 'Mastitis',
+        symptoms: 'Swelling and reduced milk yield',
         diagnosis: 'Bovine mastitis in rear right quarter',
+        treatment: 'Penicillin course',
+        medicine: 'Penicillin G',
         treatmentNotes: 'Prescribed Penicillin course, daily cleaning',
         veterinarianId: vet.id,
         veterinarianName: vet.name,
@@ -187,8 +196,12 @@ async function main() {
       },
       {
         animalId: cow2.id,
+        recordCode: 'HR002',
         diseases: 'Foot Rot',
+        symptoms: 'Lameness',
         diagnosis: 'Mild lameness, interdigital necrobacillosis',
+        treatment: 'Tetracycline injection',
+        medicine: 'Tetracycline',
         treatmentNotes: 'Cleaned hoof, administered Tetracycline injection',
         veterinarianId: vet.id,
         veterinarianName: vet.name,
@@ -202,6 +215,7 @@ async function main() {
     data: [
       {
         animalId: cow1.id,
+        vaccinationCode: 'VAC001',
         vaccineName: 'Bovi-Shield GOLD FP 5L5',
         vaccinationDate: subDays(now, 180),
         nextDueDate: addDays(now, 180),
@@ -210,30 +224,36 @@ async function main() {
       },
       {
         animalId: cow2.id,
+        vaccinationCode: 'VAC002',
         vaccineName: 'Bovi-Shield GOLD FP 5L5',
         vaccinationDate: subDays(now, 350),
-        nextDueDate: addDays(now, 15), // Upcoming soon
+        nextDueDate: addDays(now, 15),
         veterinarianId: vet.id,
         veterinarianName: vet.name,
       },
       {
-        animalId: pig1.id,
-        vaccineName: 'FarrowSure GOLD',
+        animalId: cow3.id,
+        vaccinationCode: 'VAC003',
+        vaccineName: 'Bovi-Shield GOLD FP 5L5',
         vaccinationDate: subDays(now, 90),
-        nextDueDate: addDays(now, 90),
+        nextDueDate: addDays(now, 270),
         veterinarianId: vet.id,
         veterinarianName: vet.name,
       },
     ],
   });
 
-  console.log('Seeding treatments...');
-  // Daisy - Penicillin administered 2 days ago, withdrawal 5 days -> completion in 3 days (DO NOT SELL)
-  await prisma.treatment.create({
+  console.log('Seeding treatments and withdrawals...');
+  const treatment1 = await prisma.treatment.create({
     data: {
       animalId: cow1.id,
+      disease: 'Mastitis',
       drugName: 'Penicillin G',
+      activeIngredient: 'Penicillin',
       dosage: '10 mL IM',
+      route: 'IM',
+      reason: 'Mastitis treatment',
+      treatmentStartDate: subDays(now, 2),
       administrationDate: subDays(now, 2),
       withdrawalPeriod: 5,
       withdrawalCompletionDate: addDays(subDays(now, 2), 5),
@@ -242,12 +262,16 @@ async function main() {
     },
   });
 
-  // Bella - Tetracycline administered 12 days ago, withdrawal 14 days -> completion in 2 days (CLEARING SOON)
-  await prisma.treatment.create({
+  const treatment2 = await prisma.treatment.create({
     data: {
       animalId: cow2.id,
+      disease: 'Foot Rot',
       drugName: 'Tetracycline',
+      activeIngredient: 'Oxytetracycline',
       dosage: '20 mL SQ',
+      route: 'SQ',
+      reason: 'Foot rot treatment',
+      treatmentStartDate: subDays(now, 12),
       administrationDate: subDays(now, 12),
       withdrawalPeriod: 14,
       withdrawalCompletionDate: addDays(subDays(now, 12), 14),
@@ -256,17 +280,118 @@ async function main() {
     },
   });
 
-  // Penny - Amoxicillin administered 20 days ago, withdrawal 10 days -> completion 10 days ago (CLEARED)
-  await prisma.treatment.create({
+  await prisma.withdrawalRecord.createMany({
+    data: [
+      {
+        withdrawalCode: 'WD001',
+        treatmentId: treatment1.id,
+        animalId: cow1.id,
+        productType: 'MILK',
+        medicine: 'Penicillin G',
+        treatmentDate: subDays(now, 2),
+        withdrawalPeriod: 5,
+        withdrawalEndDate: addDays(subDays(now, 2), 5),
+        status: 'RESTRICTED',
+      },
+      {
+        withdrawalCode: 'WD002',
+        treatmentId: treatment2.id,
+        animalId: cow2.id,
+        productType: 'MILK',
+        medicine: 'Tetracycline',
+        treatmentDate: subDays(now, 12),
+        withdrawalPeriod: 14,
+        withdrawalEndDate: addDays(subDays(now, 12), 14),
+        status: 'RESTRICTED',
+      },
+    ],
+  });
+
+  await prisma.amuRecord.createMany({
+    data: [
+      {
+        amuCode: 'AMU001',
+        animalId: cow1.id,
+        treatmentId: treatment1.id,
+        medicine: 'Penicillin G',
+        activeIngredient: 'Penicillin',
+        dosage: '10 mL IM',
+        route: 'IM',
+        startDate: subDays(now, 2),
+        reason: 'Mastitis treatment',
+        veterinarianId: vet.id,
+        veterinarianName: vet.name,
+      },
+      {
+        amuCode: 'AMU002',
+        animalId: cow2.id,
+        treatmentId: treatment2.id,
+        medicine: 'Tetracycline',
+        activeIngredient: 'Oxytetracycline',
+        dosage: '20 mL SQ',
+        route: 'SQ',
+        startDate: subDays(now, 12),
+        reason: 'Foot rot treatment',
+        veterinarianId: vet.id,
+        veterinarianName: vet.name,
+      },
+    ],
+  });
+
+  console.log('Seeding collection/testing/violation workflow...');
+  const collection = await prisma.milkCollection.create({
     data: {
-      animalId: pig1.id,
-      drugName: 'Amoxicillin',
-      dosage: '5 mL IM',
-      administrationDate: subDays(now, 20),
-      withdrawalPeriod: 10,
-      withdrawalCompletionDate: addDays(subDays(now, 20), 10),
-      veterinarianId: vet.id,
-      veterinarianName: vet.name,
+      collectionCode: 'COL001',
+      farmId: farm1.id,
+      animalId: cow3.id,
+      sourceReference: 'FARM001-COW003',
+      productType: 'MILK',
+      quantity: 12,
+      collectionDate: now,
+      date: now,
+      collectionCenter: 'Center A',
+      batchId: 'BATCH1001',
+    },
+  });
+
+  await prisma.milkTest.create({
+    data: {
+      batchId: 'BATCH1001',
+      sampleId: 'SAMPLE001',
+      productType: 'MILK',
+      date: now,
+      testDate: now,
+      type: 'ANTIBIOTIC_RESIDUE',
+      result: 'PENDING',
+      location: 'District Lab',
+      testingLocation: 'District Lab',
+      recordedById: tester.id,
+      recordedByName: tester.name,
+    },
+  });
+
+  await prisma.ownershipTransfer.create({
+    data: {
+      transferCode: 'TRF001',
+      animalId: cow3.id,
+      currentOwnerId: farmer.id,
+      newOwnerId: farmer.id,
+      fromFarmId: farm1.id,
+      toFarmId: farm2.id,
+      requestDate: now,
+      reason: 'Demonstration transfer request',
+      status: 'PENDING',
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: vet.id,
+      userName: vet.name,
+      role: 'VETERINARIAN',
+      action: 'Initial Livestock Seed Created',
+      entity: 'SYSTEM',
+      entityId: collection.id,
     },
   });
 

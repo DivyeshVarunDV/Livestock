@@ -30,9 +30,9 @@ export default function CompliancePage() {
       setLoading(true);
       try {
         const [animalsData, treatmentsData, reportData] = await Promise.all([
-          apiFetch('/animals', { token }),
-          apiFetch('/treatments', { token }),
-          apiFetch('/reports/compliance', { token })
+          apiFetch('/animals'),
+          apiFetch('/treatments'),
+          apiFetch('/reports/compliance')
         ]);
         
         setAnimals(animalsData || []);
@@ -59,8 +59,8 @@ export default function CompliancePage() {
     .map(t => {
       const wStatus = calculateWithdrawal(t.administrationDate, t.withdrawalPeriod);
       let priority = 'low';
-      if (wStatus.daysLeft <= 3 && wStatus.daysLeft > 0) priority = 'high';
-      else if (wStatus.daysLeft <= 7 && wStatus.daysLeft > 0) priority = 'medium';
+      if (wStatus.daysRemaining <= 3 && wStatus.daysRemaining > 0) priority = 'high';
+      else if (wStatus.daysRemaining <= 7 && wStatus.daysRemaining > 0) priority = 'medium';
       
       return { ...t, wStatus, priority };
     });
@@ -72,7 +72,7 @@ export default function CompliancePage() {
 
   // --- AMU Tab Data ---
   const amuAnalytics = calculateAMU(treatments);
-  const maxDose = Math.max(...Object.values(amuAnalytics.drugUsage || {}).map((d: any) => d.doseUnits || 0), 1);
+  const maxDose = Math.max(...Object.values(amuAnalytics.byDrug || {}).map((d: any) => d.doseUnits || 0), 1);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -316,7 +316,7 @@ export default function CompliancePage() {
                           <td className="px-6 py-4 text-gray-600">{new Date(t.administrationDate).toLocaleDateString()}</td>
                           <td className="px-6 py-4 text-gray-600">{t.wStatus.endDate ? new Date(t.wStatus.endDate).toLocaleDateString() : '-'}</td>
                           <td className="px-6 py-4">
-                            <span className="font-medium text-gray-900">{t.wStatus.daysLeft > 0 ? t.wStatus.daysLeft : 0} days</span>
+                            <span className="font-medium text-gray-900">{t.wStatus.daysRemaining > 0 ? t.wStatus.daysRemaining : 0} days</span>
                           </td>
                           <td className="px-6 py-4">
                             {t.wStatus.status === 'CLEARED' ? (
@@ -366,10 +366,10 @@ export default function CompliancePage() {
                 <h3 className="font-semibold text-gray-800">Antimicrobial Usage by Drug</h3>
               </div>
               <div className="p-6 space-y-6">
-                {!amuAnalytics.drugUsage || Object.keys(amuAnalytics.drugUsage).length === 0 ? (
+                {!amuAnalytics.byDrug || Object.keys(amuAnalytics.byDrug).length === 0 ? (
                   <p className="text-center text-gray-500 py-4">No AMU data available.</p>
                 ) : (
-                  Object.entries(amuAnalytics.drugUsage).map(([drugName, data]: [string, any]) => {
+                  Object.entries(amuAnalytics.byDrug).map(([drugName, data]: [string, any]) => {
                     const widthPercent = maxDose > 0 ? (data.doseUnits / maxDose) * 100 : 0;
                     return (
                       <div key={drugName} className="space-y-2">

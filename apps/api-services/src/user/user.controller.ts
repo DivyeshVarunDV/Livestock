@@ -7,16 +7,26 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { UserService } from './user.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 @Controller('users')
 export class UserController {
   constructor(private userService: UserService) {}
 
   @Get()
-  async findAll(@Query('search') search?: string, @Query('role') role?: string) {
-    return this.userService.findAll({ search, role });
+  async findAll(
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.userService.findAll({ search, role, status });
   }
 
   @Get(':id')

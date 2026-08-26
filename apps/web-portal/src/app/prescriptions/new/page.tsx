@@ -48,7 +48,7 @@ export default function NewPrescription() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      router.push('/reports'); // Navigate to reports or prescriptions list based on dashboard link
+      router.push('/health');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Failed to add prescription');

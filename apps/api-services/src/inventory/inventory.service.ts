@@ -31,6 +31,7 @@ export class InventoryService {
         supplier: dto.supplier || 'AgriShield Global Supply',
         cost: Number(dto.cost || 0),
         storageLocation: dto.storageLocation || 'Main Pharmacy Room',
+        withdrawalPeriod: Number(dto.withdrawalPeriod || 0),
       },
     });
   }
@@ -48,6 +49,9 @@ export class InventoryService {
     }
     if (data.cost !== undefined) {
       data.cost = Number(data.cost);
+    }
+    if (data.withdrawalPeriod !== undefined) {
+      data.withdrawalPeriod = Number(data.withdrawalPeriod);
     }
     return this.prisma.inventory.update({
       where: { id },

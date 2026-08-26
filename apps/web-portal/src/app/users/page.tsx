@@ -103,7 +103,7 @@ export default function UsersPage() {
       if (search) q.append('search', search);
 
       const data = await apiFetch(`/users?${q.toString()}`);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setUsers(data);
       } else {
         setUsers(defaultDemoUsers);

@@ -32,6 +32,12 @@ export default function Modal({
     setMounted(true);
   }, []);
 
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (isOpen && mounted) {
       triggerRef.current = document.activeElement as HTMLElement;
@@ -67,7 +73,7 @@ export default function Modal({
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           e.preventDefault();
-          onClose();
+          onCloseRef.current();
           return;
         }
 
@@ -107,7 +113,7 @@ export default function Modal({
         }
       };
     }
-  }, [isOpen, mounted, onClose]);
+  }, [isOpen, mounted, onCloseRef]);
 
   if (!isOpen || !mounted || typeof document === 'undefined') return null;
 

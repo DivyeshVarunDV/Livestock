@@ -9,14 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@livestock/shared-types": "*",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.31.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.83.0",
-    "recharts": "^3.10.1",
-    "@livestock/shared-types": "*"
+    "react-qr-code": "^2.2.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

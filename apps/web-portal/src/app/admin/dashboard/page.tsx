@@ -32,10 +32,17 @@ export default function Dashboard() {
     stats: {
       totalFarms: 0,
       totalAnimals: 0,
+      activeAnimals: 0,
       underTreatment: 0,
+      animalsUnderWithdrawal: 0,
+      vaccinationsCompleted: 0,
       vaccinationsDue: 0,
       activeMrlAlerts: 0,
-      veterinaryPrescriptions: 0
+      veterinaryPrescriptions: 0,
+      pendingOwnershipTransfers: 0,
+      productTests: 0,
+      failedTests: 0,
+      activeInvestigations: 0
     },
     rawTreatments: [] as any[],
     livestockData: [] as any[],
@@ -255,9 +262,9 @@ export default function Dashboard() {
           { label: 'Registered Farms', value: dashboardData.stats.totalFarms.toString(), icon: Tractor, trend: 'Total', up: true, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/farms' },
           { label: 'Registered Animals', value: dashboardData.stats.totalAnimals.toString(), icon: PawPrint, trend: 'Total', up: true, color: 'text-blue-600', bg: 'bg-blue-50', link: '/animals' },
           { label: 'Active Treatments', value: dashboardData.stats.underTreatment.toString(), icon: Syringe, trend: 'Currently Active', up: false, color: 'text-indigo-600', bg: 'bg-indigo-50', link: '/treatments' },
-          { label: 'Animals Under Withdrawal', value: dashboardData.stats.activeMrlAlerts.toString(), icon: AlertTriangle, trend: 'Active Alerts', up: false, color: 'text-amber-600', bg: 'bg-amber-50', link: '/withdrawal' },
-          { label: 'MRL Compliance', value: `${dashboardData.mrlCompliance.percentage}%`, icon: ShieldCheck, trend: 'Overall', up: true, color: 'text-green-600', bg: 'bg-green-50', link: '/reports' },
-          { label: 'Veterinary Prescriptions', value: dashboardData.stats.veterinaryPrescriptions.toString(), icon: FileText, trend: 'Total', up: true, color: 'text-purple-600', bg: 'bg-purple-50', link: '/reports' }
+          { label: 'Animals Under Withdrawal', value: dashboardData.stats.animalsUnderWithdrawal.toString(), icon: AlertTriangle, trend: 'Active Alerts', up: false, color: 'text-amber-600', bg: 'bg-amber-50', link: '/withdrawal' },
+          { label: 'Pending Transfers', value: dashboardData.stats.pendingOwnershipTransfers.toString(), icon: ClipboardList, trend: 'Awaiting Review', up: false, color: 'text-purple-600', bg: 'bg-purple-50', link: '/transfers' },
+          { label: 'Active Investigations', value: dashboardData.stats.activeInvestigations.toString(), icon: ShieldCheck, trend: 'Compliance Review', up: false, color: 'text-red-600', bg: 'bg-red-50', link: '/violations' }
         ].map((kpi, idx) => (
           <Link href={kpi.link || "#"} key={idx} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col justify-between hover:border-green-300 transition-colors cursor-pointer block">
             <div className="flex justify-between items-start mb-2">

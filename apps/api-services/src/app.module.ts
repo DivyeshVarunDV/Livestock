@@ -13,6 +13,11 @@ import { NotificationModule } from './notification/notification.module';
 import { AuditModule } from './audit/audit.module';
 import { UserModule } from './user/user.module';
 import { PrescriptionModule } from './prescription/prescription.module';
+import { MilkCollectionModule } from './milk-collection/milk-collection.module';
+import { MilkTestModule } from './milk-test/milk-test.module';
+import { ViolationModule } from './violation/violation.module';
+import { OwnershipTransferModule } from './ownership-transfer/ownership-transfer.module';
+import { AmuModule } from './amu/amu.module';
 
 @Module({
   imports: [
@@ -30,6 +35,11 @@ import { PrescriptionModule } from './prescription/prescription.module';
     AuditModule,
     UserModule,
     PrescriptionModule,
+    MilkCollectionModule,
+    MilkTestModule,
+    ViolationModule,
+    OwnershipTransferModule,
+    AmuModule,
   ],
 })
 export class AppModule {}

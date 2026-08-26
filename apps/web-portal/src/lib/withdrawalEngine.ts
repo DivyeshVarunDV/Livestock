@@ -1,9 +1,12 @@
 export interface TreatmentRecord {
   id?: string;
   animalId: string;
-  treatmentDate: string;
-  medicine: string;
+  treatmentDate?: string;
+  administrationDate?: string;
+  medicine?: string;
+  drugName?: string;
   withdrawalPeriodDays?: number;
+  withdrawalPeriod?: number;
   [key: string]: any;
 }
 
@@ -63,8 +66,11 @@ export function calculateOverallWithdrawal(treatments: TreatmentRecord[]): Withd
   let latestStatus: WithdrawalStatus = { endDate: null, daysRemaining: 0, status: 'CLEARED' };
 
   for (const treatment of treatments) {
-    const current = calculateWithdrawal(treatment.treatmentDate, treatment.withdrawalPeriodDays);
-    
+    const current = calculateWithdrawal(
+      treatment.administrationDate || treatment.treatmentDate || '',
+      treatment.withdrawalPeriod ?? treatment.withdrawalPeriodDays,
+    );
+
     if (current.endDate) {
       if (!latestStatus.endDate || current.endDate > latestStatus.endDate) {
         latestStatus = { ...current, treatment };

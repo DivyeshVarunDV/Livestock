@@ -6,22 +6,22 @@ import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { calculateWithdrawal } from '@/lib/withdrawalEngine';
 import Loader from '@/components/Loader';
-import { 
-  Syringe, 
-  FileText, 
-  Calendar, 
-  Package, 
-  Search, 
-  Plus, 
-  Pill 
+import {
+  Syringe,
+  FileText,
+  Calendar,
+  Package,
+  Search,
+  Plus,
+  Pill
 } from 'lucide-react';
 
 export default function HealthPage() {
   const { token } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState('treatments');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [treatments, setTreatments] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [vaccinations, setVaccinations] = useState<any[]>([]);
@@ -31,7 +31,7 @@ export default function HealthPage() {
   useEffect(() => {
     if (!token) return;
     let isMounted = true;
-    
+
     async function fetchData() {
       try {
         setLoading(true);
@@ -41,12 +41,12 @@ export default function HealthPage() {
           apiFetch('/vaccinations/upcoming', { token }),
           apiFetch('/inventory', { token })
         ]);
-        
+
         if (isMounted) {
-          setTreatments(tRes.data || []);
-          setPrescriptions(pRes.data || []);
-          setVaccinations(vRes.data || []);
-          setInventory(iRes.data || []);
+          setTreatments(Array.isArray(tRes) ? tRes : []);
+          setPrescriptions(Array.isArray(pRes) ? pRes : []);
+          setVaccinations(Array.isArray(vRes) ? vRes : []);
+          setInventory(Array.isArray(iRes) ? iRes : []);
         }
       } catch (error) {
         console.error('Error fetching health data', error);
@@ -54,7 +54,7 @@ export default function HealthPage() {
         if (isMounted) setLoading(false);
       }
     }
-    
+
     fetchData();
     return () => { isMounted = false; };
   }, [token]);
@@ -77,7 +77,7 @@ export default function HealthPage() {
     const due = new Date(dueDate);
     const now = new Date();
     const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 3600 * 24));
-    
+
     if (diffDays < 0) return { label: 'Overdue', classes: 'bg-red-100 text-red-800' };
     if (diffDays <= 7) return { label: 'Due Soon', classes: 'bg-amber-100 text-amber-800' };
     return { label: 'Upcoming', classes: 'bg-green-100 text-green-800' };
@@ -101,7 +101,6 @@ export default function HealthPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
-      {/* Header */}
       <div className="flex items-center space-x-4">
         <div className="bg-green-100 p-3 rounded-full animate-pulse">
           <Pill className="h-8 w-8 text-green-600" />
@@ -112,7 +111,6 @@ export default function HealthPage() {
         </div>
       </div>
 
-      {/* Tab Bar */}
       <div className="bg-gray-100 p-1 rounded-lg inline-flex flex-wrap gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -125,8 +123,8 @@ export default function HealthPage() {
                 setSearchQuery('');
               }}
               className={`flex items-center space-x-2 px-5 py-2.5 rounded-md text-sm transition-all duration-200 ${
-                isActive 
-                  ? 'bg-white shadow-sm text-green-700 font-semibold' 
+                isActive
+                  ? 'bg-white shadow-sm text-green-700 font-semibold'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -137,10 +135,7 @@ export default function HealthPage() {
         })}
       </div>
 
-      {/* Content Area */}
       <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-        
-        {/* Actions Row */}
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
           <div className="relative max-w-md w-full">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -154,20 +149,20 @@ export default function HealthPage() {
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm transition-shadow"
             />
           </div>
-          
+
           {activeTab === 'treatments' && (
-            <Link 
-              href="/treatments/new" 
+            <Link
+              href="/treatments/new"
               className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               New Treatment
             </Link>
           )}
-          
+
           {activeTab === 'prescriptions' && (
-            <Link 
-              href="/prescriptions/new" 
+            <Link
+              href="/prescriptions/new"
               className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -176,7 +171,6 @@ export default function HealthPage() {
           )}
         </div>
 
-        {/* Tables */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -217,10 +211,9 @@ export default function HealthPage() {
               )}
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              
               {activeTab === 'treatments' && treatments
-                .filter(t => 
-                  t.drug?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                .filter((t) =>
+                  (t.drugName || t.drug || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                   t.animal?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   t.animal?.tagNumber?.toLowerCase().includes(searchQuery.toLowerCase())
                 )
@@ -233,7 +226,7 @@ export default function HealthPage() {
                         <div className="text-xs text-gray-500">{t.animal?.tagNumber}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 font-medium">{t.drug}</div>
+                        <div className="text-sm text-gray-900 font-medium">{t.drugName || t.drug}</div>
                         <div className="text-xs text-gray-500">{t.dosage}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -241,18 +234,18 @@ export default function HealthPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          wd.isActive ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                          wd.status !== 'CLEARED' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
                         }`}>
-                          {wd.isActive ? 'Active' : 'Clear'}
+                          {wd.status !== 'CLEARED' ? 'Active' : 'Clear'}
                         </span>
                       </td>
                     </tr>
                   );
-              })}
+                })}
 
               {activeTab === 'prescriptions' && prescriptions
-                .filter(p => 
-                  p.medicine?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                .filter((p) =>
+                  p.medicine?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   p.animal?.name?.toLowerCase().includes(searchQuery.toLowerCase())
                 )
                 .map((p, idx) => (
@@ -269,7 +262,7 @@ export default function HealthPage() {
                       {p.duration || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {p.veterinarian || '-'}
+                      {p.veterinarianName || p.veterinarian || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -279,11 +272,11 @@ export default function HealthPage() {
                       </span>
                     </td>
                   </tr>
-              ))}
+                ))}
 
               {activeTab === 'vaccinations' && vaccinations
-                .filter(v => 
-                  v.vaccineName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                .filter((v) =>
+                  v.vaccineName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   v.animal?.name?.toLowerCase().includes(searchQuery.toLowerCase())
                 )
                 .map((v, idx) => {
@@ -301,7 +294,7 @@ export default function HealthPage() {
                         {v.vaccineName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(v.dateGiven)}
+                        {formatDate(v.vaccinationDate || v.dateGiven)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 mb-1">{formatDate(v.nextDueDate)}</div>
@@ -311,17 +304,17 @@ export default function HealthPage() {
                       </td>
                     </tr>
                   );
-              })}
+                })}
 
               {activeTab === 'inventory' && inventory
-                .filter(i => i.medicineName?.toLowerCase().includes(searchQuery.toLowerCase()))
+                .filter((i) => i.medicineName?.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((item, idx) => {
                   const isLowStock = item.stock < (item.minimumStock || 0);
                   const expiring = isExpiringSoon(item.expiryDate);
-                  
+
                   return (
-                    <tr 
-                      key={item.id || idx} 
+                    <tr
+                      key={item.id || idx}
                       className={`hover:bg-gray-50 transition-colors ${isLowStock ? 'bg-red-50/50' : ''}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -347,12 +340,10 @@ export default function HealthPage() {
                       </td>
                     </tr>
                   );
-              })}
-              
+                })}
             </tbody>
           </table>
-          
-          {/* Empty States */}
+
           {activeTab === 'treatments' && treatments.length === 0 && !loading && (
             <div className="p-8 text-center text-gray-500">No treatments found.</div>
           )}

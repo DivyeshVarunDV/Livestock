@@ -2,10 +2,13 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
+
+const ALLOWED_ROLES = new Set(['ADMIN', 'VETERINARIAN', 'TESTER', 'FARMER']);
 
 @Injectable()
 export class AuthService {
@@ -13,6 +16,14 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
+
+  private normalizeRole(role?: string) {
+    const normalized = (role || '').toUpperCase();
+    if (!ALLOWED_ROLES.has(normalized)) {
+      throw new BadRequestException('Invalid role');
+    }
+    return normalized;
+  }
 
   async register(dto: any) {
     const existing = await this.prisma.user.findUnique({
@@ -23,12 +34,15 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const role = this.normalizeRole(dto.role);
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         name: dto.name,
-        role: dto.role, // ADMIN, VETERINARIAN, FARMER
+        role,
+        phone: dto.phone || null,
+        department: dto.department || null,
       },
     });
 
@@ -51,6 +65,10 @@ export class AuthService {
     });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.status && user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Account is not active');
     }
 
     const matches = await bcrypt.compare(dto.password, user.passwordHash);

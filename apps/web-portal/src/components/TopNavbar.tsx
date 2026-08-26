@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
-  LayoutDashboard, PawPrint, Tractor, Syringe, Clock, HeartPulse, ShieldCheck, BarChart3,
+  LayoutDashboard, PawPrint, Tractor, Syringe, Clock, BarChart3,
   Bell, LogOut, User, Settings, Users, ClipboardList, Menu, X, ChevronDown,
-  Shield, Package, Pill, FileText
+  Shield, Package, Pill, FileText, FlaskConical, Droplets, ShieldAlert, Search
 } from 'lucide-react';
 
 export default function TopNavbar() {
@@ -19,12 +19,15 @@ export default function TopNavbar() {
 
   const isAdmin = user?.role === 'admin';
   const isVet = user?.role === 'veterinarian';
+  const isTester = user?.role === 'tester';
 
   const homePath = isAdmin
     ? '/admin/dashboard'
     : isVet
       ? '/veterinarian/dashboard'
-      : '/dashboard';
+      : isTester
+        ? '/tester/dashboard'
+        : '/dashboard';
 
   const vetNavItems = [
     { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
@@ -32,8 +35,17 @@ export default function TopNavbar() {
     { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
     { name: 'Withdrawal Timers', href: '/veterinarian/withdrawal', icon: Clock },
     { name: 'Pharmacy Inventory', href: '/veterinarian/inventory', icon: Package },
-    { name: 'Prescriptions', href: '/veterinarian/prescriptions', icon: FileText },
     { name: 'Drug Reference', href: '/veterinarian/drug-reference', icon: Pill },
+  ];
+
+  const testerNavItems = [
+    { name: 'Dashboard', href: '/tester/dashboard', icon: LayoutDashboard },
+    { name: 'Farms', href: '/farms', icon: Tractor },
+    { name: 'Collections', href: '/milk-collection', icon: Droplets },
+    { name: 'Testing', href: '/milk-testing', icon: FlaskConical },
+    { name: 'Violations', href: '/violations', icon: ShieldAlert },
+    { name: 'Animals', href: '/animals', icon: PawPrint },
+    { name: 'Search', href: '/reports', icon: Search },
   ];
 
   const adminNavItems = [
@@ -42,12 +54,12 @@ export default function TopNavbar() {
     { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/treatments', icon: Syringe },
     { name: 'Withdrawal', href: '/withdrawal', icon: Clock },
-    { name: 'MRL Compliance', href: '/mrl', icon: ShieldCheck },
+    { name: 'MRL Compliance', href: '/mrl', icon: Shield },
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
   ];
 
-  const mainNavItems = isVet ? vetNavItems : adminNavItems;
+  const mainNavItems = isVet ? vetNavItems : isTester ? testerNavItems : adminNavItems;
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -65,8 +77,14 @@ export default function TopNavbar() {
   }, [pathname]);
 
   function isActive(href: string) {
-    if (href === homePath || href === '/dashboard' || href === '/admin/dashboard' || href === '/veterinarian/dashboard') {
-      return pathname === '/dashboard' || pathname === '/admin/dashboard' || pathname === '/veterinarian/dashboard';
+    if (
+      href === homePath ||
+      href === '/dashboard' ||
+      href === '/admin/dashboard' ||
+      href === '/veterinarian/dashboard' ||
+      href === '/tester/dashboard'
+    ) {
+      return pathname === '/dashboard' || pathname === '/admin/dashboard' || pathname === '/veterinarian/dashboard' || pathname === '/tester/dashboard';
     }
     return pathname.startsWith(href);
   }
@@ -76,9 +94,7 @@ export default function TopNavbar() {
       <header className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#064E3B] to-[#065F46] shadow-lg">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-[56px]">
-            {/* Left: Logo + Nav */}
             <div className="flex items-center gap-6 lg:gap-8">
-              {/* Logo */}
               <Link href={homePath} className="flex items-center gap-2.5 shrink-0 group">
                 <div className="w-8 h-8 bg-white/15 backdrop-blur-sm rounded-lg flex items-center justify-center group-hover:bg-white/25 transition-colors">
                   <Shield size={18} className="text-emerald-300" />
@@ -89,7 +105,6 @@ export default function TopNavbar() {
                 </div>
               </Link>
 
-              {/* Desktop Nav */}
               <nav className="hidden lg:flex items-center gap-0.5">
                 {mainNavItems.map((item) => (
                   <Link
@@ -108,9 +123,7 @@ export default function TopNavbar() {
               </nav>
             </div>
 
-            {/* Right: Actions */}
             <div className="flex items-center gap-1.5">
-              {/* Notifications */}
               <Link
                 href="/notifications"
                 className="p-2 rounded-lg hover:bg-white/10 transition-colors relative text-emerald-100/80 hover:text-white"
@@ -119,10 +132,8 @@ export default function TopNavbar() {
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-400 rounded-full ring-2 ring-[#064E3B] animate-pulse" />
               </Link>
 
-              {/* Divider */}
               <div className="h-6 w-px bg-white/15 mx-1.5 hidden sm:block" />
 
-              {/* Profile Dropdown */}
               <div className="relative" ref={profileRef}>
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
@@ -187,7 +198,6 @@ export default function TopNavbar() {
                 )}
               </div>
 
-              {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-lg text-emerald-100/80 hover:bg-white/10 hover:text-white lg:hidden ml-0.5 transition-colors"
@@ -198,7 +208,6 @@ export default function TopNavbar() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-white/10 bg-[#053D2E] animate-fade-in">
             <nav className="px-4 py-3 space-y-0.5">

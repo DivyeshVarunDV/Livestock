@@ -294,7 +294,7 @@ export default function WithdrawalPage() {
               </div>
               <div>
                 <span className="text-xs text-gray-500 font-semibold block uppercase">Drug/Medicine</span>
-                <span className="text-sm font-semibold text-gray-800">{selectedRecord.medicine || 'N/A'}</span>
+                <span className="text-sm font-semibold text-gray-800">{selectedRecord.drug || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-xs text-gray-500 font-semibold block uppercase">Dosage</span>
@@ -303,18 +303,18 @@ export default function WithdrawalPage() {
               <div>
                 <span className="text-xs text-gray-500 font-semibold block uppercase">Treatment Date</span>
                 <span className="text-sm text-gray-800">
-                  {selectedRecord.treatmentDate ? new Date(selectedRecord.treatmentDate).toLocaleDateString('en-GB') : 'N/A'}
+                  {selectedRecord.adminDate ? new Date(selectedRecord.adminDate).toLocaleDateString('en-GB') : 'N/A'}
                 </span>
               </div>
               <div>
                 <span className="text-xs text-gray-500 font-semibold block uppercase">Withdrawal Period</span>
-                <span className="text-sm text-gray-800">{selectedRecord.withdrawalPeriodDays} days</span>
+                <span className="text-sm text-gray-800">{selectedRecord.periodDays} days</span>
               </div>
               <div>
                 <span className="text-xs text-gray-500 font-semibold block uppercase">Withdrawal End Date</span>
                 <span className="text-sm font-bold text-gray-900">
-                  {selectedRecord.treatmentDate && selectedRecord.withdrawalPeriodDays ? 
-                    new Date(new Date(selectedRecord.treatmentDate).getTime() + selectedRecord.withdrawalPeriodDays * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB') 
+                  {selectedRecord.adminDate && selectedRecord.periodDays ?
+                    new Date(new Date(selectedRecord.adminDate).getTime() + selectedRecord.periodDays * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB')
                     : 'N/A'
                   }
                 </span>

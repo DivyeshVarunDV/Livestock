@@ -17,6 +17,7 @@ export default function DrugReferencePage() {
     mrlLimit: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inventory, setInventory] = useState<any[]>([]);
 
   useEffect(() => {
     loadRules();
@@ -25,8 +26,12 @@ export default function DrugReferencePage() {
   async function loadRules() {
     setLoading(true);
     try {
-      const res = await apiFetch('/treatments/rules');
+      const [res, invRes] = await Promise.all([
+        apiFetch('/treatments/rules'),
+        apiFetch('/inventory').catch(() => [])
+      ]);
       setRules(res || []);
+      setInventory(Array.isArray(invRes) ? invRes : []);
     } catch (err) {
       console.error('Failed to load rules', err);
     } finally {
@@ -91,7 +96,7 @@ export default function DrugReferencePage() {
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
+            <input autoComplete="off"
               type="text"
               placeholder="Search by drug name or species..."
               value={search}
@@ -149,17 +154,31 @@ export default function DrugReferencePage() {
 
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add MRL Rule" icon="fa-pill">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Drug Name</label>
-            <input
-              type="text"
-              required
-              value={formData.drugName}
-              onChange={(e) => setFormData({...formData, drugName: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-              placeholder="e.g. Oxytetracycline"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Drug Name</label>
+              <input autoComplete="off"
+                list="inventory-drug-list"
+                type="text"
+                required
+                value={formData.drugName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const selected = inventory.find(i => i.medicineName === val);
+                  setFormData({
+                    ...formData, 
+                    drugName: val,
+                    withdrawalPeriod: selected && selected.withdrawalPeriod ? String(selected.withdrawalPeriod) : formData.withdrawalPeriod
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                placeholder="e.g. Oxytetracycline"
+              />
+              <datalist id="inventory-drug-list">
+                {inventory.map(item => (
+                  <option key={item.id} value={item.medicineName} />
+                ))}
+              </datalist>
+            </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Species</label>
             <select
@@ -176,7 +195,7 @@ export default function DrugReferencePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Withdrawal Period (Days)</label>
-            <input
+            <input autoComplete="off"
               type="number"
               required
               min="0"
@@ -187,7 +206,7 @@ export default function DrugReferencePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">MRL Limit</label>
-            <input
+            <input autoComplete="off"
               type="text"
               required
               value={formData.mrlLimit}

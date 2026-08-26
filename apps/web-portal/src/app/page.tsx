@@ -15,6 +15,8 @@ export default function RootPage() {
           router.push('/admin/dashboard');
         } else if (user.role === 'veterinarian') {
           router.push('/veterinarian/dashboard');
+        } else if (user.role === 'tester') {
+          router.push('/tester/dashboard');
         } else {
           router.push('/dashboard');
         }

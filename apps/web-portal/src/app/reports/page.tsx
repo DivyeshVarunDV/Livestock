@@ -54,10 +54,10 @@ export default function ReportsPage() {
       setError(null);
       try {
         const [healthRes, vacRes, treatRes, compRes] = await Promise.all([
-          apiFetch('/reports/health', { token }),
-          apiFetch('/reports/vaccinations', { token }),
-          apiFetch('/reports/treatments', { token }),
-          apiFetch('/reports/compliance', { token }),
+          apiFetch('/reports/health'),
+          apiFetch('/reports/vaccinations'),
+          apiFetch('/reports/treatments'),
+          apiFetch('/reports/compliance'),
         ]);
 
         if (healthRes.error) throw new Error(healthRes.error);

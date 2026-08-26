@@ -70,13 +70,15 @@ export default function FarmsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Farms</h1>
           <p className="text-sm text-gray-500">Registered farm properties and locations.</p>
         </div>
-        <Link
-          href="/farms/new"
-          className="inline-flex items-center px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Farm
-        </Link>
+        {user?.role !== 'tester' && (
+          <Link
+            href="/farms/new"
+            className="inline-flex items-center px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Farm
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

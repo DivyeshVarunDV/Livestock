@@ -22,6 +22,7 @@ export default function LoginPage() {
     if (user) {
       if (user.role === 'admin') router.push('/admin/dashboard');
       else if (user.role === 'veterinarian') router.push('/veterinarian/dashboard');
+      else if (user.role === 'tester') router.push('/tester/dashboard');
     }
   }, [user, router]);
 
@@ -165,6 +166,16 @@ export default function LoginPage() {
               className="flex-1 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors border border-gray-300"
             >
               Fill Vet Info
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('tester@livestocare.local');
+                setPassword('Tester@12345');
+              }}
+              className="flex-1 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors border border-gray-300"
+            >
+              Fill Tester Info
             </button>
           </div>
 

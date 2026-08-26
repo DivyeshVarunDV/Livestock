@@ -40,7 +40,7 @@ export default function LivestockPage() {
     async function loadAnimals() {
       try {
         setLoading(true);
-        const data = await apiFetch<Animal[]>('/animals');
+        const data = await apiFetch('/animals');
         setAnimals(data);
       } catch (err: any) {
         setError(err.message || 'Failed to load livestock');

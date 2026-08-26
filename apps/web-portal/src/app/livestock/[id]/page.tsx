@@ -3,17 +3,36 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Activity, Info, Shield, Syringe, FileText, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Activity, Info, Shield, Syringe, FileText, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import Loader from '@/components/Loader';
-import { calculateWithdrawal, calculateOverallWithdrawal } from '@/lib/withdrawalEngine';
+import { calculateOverallWithdrawal } from '@/lib/withdrawalEngine';
+
+function getMrlBadgeClasses(mrlStatus?: string) {
+  if (mrlStatus === 'CLEARED') return 'bg-green-50 text-green-700 border-green-200';
+  if (mrlStatus === 'DO_NOT_SELL') return 'bg-red-50 text-red-700 border-red-200';
+  return 'bg-amber-50 text-amber-700 border-amber-200';
+}
+
+function getMrlDescription(mrlStatus?: string) {
+  if (mrlStatus === 'CLEARED') {
+    return 'All recent treatments are cleared for sale or collection.';
+  }
+  if (mrlStatus === 'DO_NOT_SELL') {
+    return 'This animal is currently restricted from sale or collection due to active withdrawal requirements.';
+  }
+  if (mrlStatus === 'CLEARING_SOON') {
+    return 'This animal is nearing clearance but still requires withdrawal completion.';
+  }
+  return 'Compliance status is pending or requires review.';
+}
 
 export default function LivestockProfilePage() {
   const params = useParams();
   const id = params.id as string;
   const { token } = useAuth();
-  
+
   const [animal, setAnimal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,12 +76,13 @@ export default function LivestockProfilePage() {
     );
   }
 
-  // Derived compliance
+  const animalAge = animal.age ?? animal.ageMonths;
   const treatmentsForWithdrawal = (animal.treatments || []).map((t: any) => ({
-    treatmentDate: t.administrationDate,
-    withdrawalPeriodDays: t.withdrawalPeriod
+    administrationDate: t.administrationDate,
+    withdrawalPeriod: t.withdrawalPeriod,
   }));
   const overallWithdrawal = calculateOverallWithdrawal(treatmentsForWithdrawal);
+  const mrlBadgeClasses = getMrlBadgeClasses(animal.mrlStatus);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -70,7 +90,6 @@ export default function LivestockProfilePage() {
         <ArrowLeft className="w-4 h-4 mr-1" /> Back to Livestock
       </Link>
 
-      {/* Profile Header Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="h-2 bg-gradient-to-r from-green-500 to-emerald-600" />
         <div className="p-6">
@@ -89,7 +108,7 @@ export default function LivestockProfilePage() {
                 <span>&bull;</span>
                 <span>{animal.gender}</span>
                 <span>&bull;</span>
-                <span>{animal.ageMonths} months</span>
+                <span>{animalAge ?? 'N/A'} months</span>
                 <span>&bull;</span>
                 <span>{animal.weight} kg</span>
                 <span>&bull;</span>
@@ -104,11 +123,7 @@ export default function LivestockProfilePage() {
               }`}>
                 {animal.status}
               </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                animal.mrlStatus === 'COMPLIANT' ? 'bg-green-50 text-green-700 border-green-200' :
-                animal.mrlStatus === 'NON_COMPLIANT' ? 'bg-red-50 text-red-700 border-red-200' :
-                'bg-amber-50 text-amber-700 border-amber-200'
-              }`}>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${mrlBadgeClasses}`}>
                 MRL: {animal.mrlStatus}
               </span>
             </div>
@@ -116,7 +131,6 @@ export default function LivestockProfilePage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex space-x-8">
           {[
@@ -146,14 +160,13 @@ export default function LivestockProfilePage() {
         </nav>
       </div>
 
-      {/* Tab Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoItem label="Species" value={animal.species} />
             <InfoItem label="Breed" value={animal.breed} />
             <InfoItem label="Gender" value={animal.gender} />
-            <InfoItem label="Age" value={`${animal.ageMonths} months`} />
+            <InfoItem label="Age" value={`${animalAge ?? 'N/A'} months`} />
             <InfoItem label="Weight" value={`${animal.weight} kg`} />
             <InfoItem label="Farm" value={animal.farm?.name || 'N/A'} />
             <InfoItem label="Status" value={animal.status} />
@@ -216,7 +229,7 @@ export default function LivestockProfilePage() {
                       const today = new Date();
                       const diffTime = dueDate.getTime() - today.getTime();
                       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      
+
                       let dueBadge = 'bg-green-100 text-green-800';
                       if (diffDays < 0) dueBadge = 'bg-red-100 text-red-800';
                       else if (diffDays <= 7) dueBadge = 'bg-amber-100 text-amber-800';
@@ -224,13 +237,13 @@ export default function LivestockProfilePage() {
                       return (
                         <tr key={v.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.vaccineName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(v.dateAdministered).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(v.vaccinationDate || v.dateAdministered).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${dueBadge}`}>
                               {new Date(v.nextDueDate).toLocaleDateString()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{v.administeredBy}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{v.veterinarianName || v.administeredBy}</td>
                         </tr>
                       );
                     })}
@@ -238,7 +251,7 @@ export default function LivestockProfilePage() {
                 </table>
               </div>
             ) : (
-               <EmptyState title="No vaccinations" description="No vaccination records found." icon={Syringe} />
+              <EmptyState title="No vaccinations" description="No vaccination records found." icon={Syringe} />
             )}
           </div>
         )}
@@ -261,7 +274,7 @@ export default function LivestockProfilePage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {animal.treatments.map((t: any) => {
-                      const wStatus = calculateWithdrawal(t.administrationDate, t.withdrawalPeriod);
+                      const wStatus = calculateOverallWithdrawal([{ animalId: t.animalId || animal.id, administrationDate: t.administrationDate, withdrawalPeriod: t.withdrawalPeriod }]);
                       let statusBadge = 'bg-gray-100 text-gray-800';
                       if (wStatus.status === 'CLEARED') statusBadge = 'bg-green-100 text-green-800';
                       else if (wStatus.status === 'ACTIVE') statusBadge = 'bg-amber-100 text-amber-800';
@@ -288,7 +301,7 @@ export default function LivestockProfilePage() {
                 </table>
               </div>
             ) : (
-               <EmptyState title="No treatments" description="No medical treatments recorded." icon={FileText} />
+              <EmptyState title="No treatments" description="No medical treatments recorded." icon={FileText} />
             )}
           </div>
         )}
@@ -296,48 +309,38 @@ export default function LivestockProfilePage() {
         {activeTab === 'compliance' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 flex flex-col items-center text-center">
-              <Clock className={`w-12 h-12 mb-4 ${overallWithdrawal.isCleared ? 'text-green-500' : 'text-amber-500'}`} />
+              <Clock className={`w-12 h-12 mb-4 ${overallWithdrawal.status === 'CLEARED' ? 'text-green-500' : 'text-amber-500'}`} />
               <h4 className="text-lg font-semibold text-gray-900 mb-1">Withdrawal Status</h4>
               <span className={`px-3 py-1 rounded-full text-sm font-medium border mb-4 ${
-                overallWithdrawal.isCleared 
-                  ? 'bg-green-100 text-green-800 border-green-200' 
+                overallWithdrawal.status === 'CLEARED'
+                  ? 'bg-green-100 text-green-800 border-green-200'
                   : 'bg-amber-100 text-amber-800 border-amber-200'
               }`}>
-                {overallWithdrawal.isCleared ? 'CLEARED' : 'ACTIVE'}
+                {overallWithdrawal.status === 'CLEARED' ? 'CLEARED' : overallWithdrawal.status}
               </span>
-              
-              {!overallWithdrawal.isCleared && overallWithdrawal.endDate && (
+
+              {overallWithdrawal.status !== 'CLEARED' && overallWithdrawal.endDate && (
                 <div className="text-sm text-gray-600">
                   <p>Clearance expected on:</p>
                   <p className="font-semibold text-gray-900 mt-1">{new Date(overallWithdrawal.endDate).toLocaleDateString()}</p>
                   <p className="mt-1">({overallWithdrawal.daysRemaining} days remaining)</p>
                 </div>
               )}
-              {overallWithdrawal.isCleared && (
+              {overallWithdrawal.status === 'CLEARED' && (
                 <p className="text-sm text-gray-600">Safe for consumption / products.</p>
               )}
             </div>
 
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 flex flex-col items-center text-center">
               <Shield className={`w-12 h-12 mb-4 ${
-                animal.mrlStatus === 'COMPLIANT' ? 'text-green-500' : 
-                animal.mrlStatus === 'NON_COMPLIANT' ? 'text-red-500' : 'text-amber-500'
+                animal.mrlStatus === 'CLEARED' ? 'text-green-500' :
+                animal.mrlStatus === 'DO_NOT_SELL' ? 'text-red-500' : 'text-amber-500'
               }`} />
               <h4 className="text-lg font-semibold text-gray-900 mb-1">MRL Compliance</h4>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium border mb-4 ${
-                animal.mrlStatus === 'COMPLIANT' ? 'bg-green-100 text-green-800 border-green-200' :
-                animal.mrlStatus === 'NON_COMPLIANT' ? 'bg-red-100 text-red-800 border-red-200' :
-                'bg-amber-100 text-amber-800 border-amber-200'
-              }`}>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium border mb-4 ${mrlBadgeClasses}`}>
                 {animal.mrlStatus}
               </span>
-              <p className="text-sm text-gray-600">
-                {animal.mrlStatus === 'COMPLIANT' 
-                  ? 'All recent treatments fall within acceptable Maximum Residue Limits.'
-                  : animal.mrlStatus === 'NON_COMPLIANT'
-                  ? 'Warning: Residue levels exceed acceptable limits.'
-                  : 'Pending testing or evaluation.'}
-              </p>
+              <p className="text-sm text-gray-600">{getMrlDescription(animal.mrlStatus)}</p>
             </div>
           </div>
         )}
@@ -358,10 +361,8 @@ function InfoItem({ label, value }: { label: string, value: React.ReactNode }) {
 function EmptyState({ title, description, icon: Icon }: { title: string, description: string, icon: any }) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center bg-gray-50 rounded-lg border border-gray-100">
-      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
-        <Icon className="w-6 h-6 text-gray-400" />
-      </div>
-      <h4 className="text-base font-medium text-gray-900 mb-1">{title}</h4>
+      <Icon className="w-12 h-12 text-gray-400 mb-3" />
+      <h4 className="text-lg font-medium text-gray-900 mb-1">{title}</h4>
       <p className="text-sm text-gray-500">{description}</p>
     </div>
   );

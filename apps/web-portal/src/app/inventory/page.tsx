@@ -6,6 +6,20 @@ import Modal from '@/components/Modal';
 import Link from 'next/link';
 import { ChevronRight, ArrowRight } from 'lucide-react';
 
+const STANDARD_VET_DRUGS = [
+  { drugName: 'Oxytetracycline 200mg/ml', withdrawalPeriod: 28, mrlLimit: 'Standard' },
+  { drugName: 'Penicillin G Procaine', withdrawalPeriod: 10, mrlLimit: 'Standard' },
+  { drugName: 'Ivermectin 1% Injectable', withdrawalPeriod: 35, mrlLimit: 'Standard' },
+  { drugName: 'Enrofloxacin 10%', withdrawalPeriod: 28, mrlLimit: 'Standard' },
+  { drugName: 'Amoxicillin LA 150mg/ml', withdrawalPeriod: 21, mrlLimit: 'Standard' },
+  { drugName: 'Flunixin Meglumine', withdrawalPeriod: 4, mrlLimit: 'Standard' },
+  { drugName: 'Meloxicam 20mg/ml', withdrawalPeriod: 15, mrlLimit: 'Standard' },
+  { drugName: 'Albendazole 10%', withdrawalPeriod: 27, mrlLimit: 'Standard' },
+  { drugName: 'Doramectin 1%', withdrawalPeriod: 35, mrlLimit: 'Standard' },
+  { drugName: 'Ceftiofur Sodium', withdrawalPeriod: 4, mrlLimit: 'Standard' },
+  { drugName: 'Tylosin 200mg/ml', withdrawalPeriod: 21, mrlLimit: 'Standard' },
+];
+
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,14 +38,27 @@ export default function InventoryPage() {
   const [supplier, setSupplier] = useState('');
   const [cost, setCost] = useState('25');
   const [storageLocation, setStorageLocation] = useState('Cabinet A');
-
+  const [withdrawalPeriod, setWithdrawalPeriod] = useState('0');
+  const [drugRefs, setDrugRefs] = useState<any[]>(STANDARD_VET_DRUGS);
 
 
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch('/inventory');
+      const [data, rules] = await Promise.all([
+        apiFetch('/inventory'),
+        apiFetch('/treatments/rules').catch(() => [])
+      ]);
       setItems(Array.isArray(data) ? data : []);
+      
+      // Merge backend rules with standard defaults
+      if (Array.isArray(rules)) {
+        const merged = [...rules, ...STANDARD_VET_DRUGS];
+        const uniqueDrugs = Array.from(new Set(merged.map(r => r.drugName)));
+        setDrugRefs(uniqueDrugs.map(name => {
+          return merged.find(r => r.drugName === name);
+        }));
+      }
     } catch {
       // Enterprise default inventory list if offline/empty
       setItems([
@@ -117,6 +144,7 @@ export default function InventoryPage() {
       setSupplier(item.supplier || '');
       setCost(String(item.cost || '0'));
       setStorageLocation(item.storageLocation || '');
+      setWithdrawalPeriod(String(item.withdrawalPeriod || '0'));
     } else {
       setEditItem(null);
       setMedicineName('');
@@ -128,6 +156,7 @@ export default function InventoryPage() {
       setSupplier('AgriShield Global Supply');
       setCost('30');
       setStorageLocation('Main Pharmacy Room');
+      setWithdrawalPeriod('0');
     }
     setModalOpen(true);
   };
@@ -144,6 +173,7 @@ export default function InventoryPage() {
       supplier,
       cost: Number(cost),
       storageLocation,
+      withdrawalPeriod: Number(withdrawalPeriod),
     };
     try {
       if (editItem) {
@@ -283,7 +313,7 @@ export default function InventoryPage() {
       <div className="glass-panel p-4 flex justify-between items-center flex-wrap gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
         <div className="flex gap-2 items-center flex-1 min-w-[280px] bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
           <i className="fa fa-search text-gray-400"></i>
-          <input
+          <input autoComplete="off"
             type="text"
             placeholder="Search medicine name, manufacturer, or batch number..."
             value={search}
@@ -423,26 +453,40 @@ export default function InventoryPage() {
         icon="fa-archive"
       >
         <form onSubmit={handleSaveItem} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Medicine / Drug Name
-            </label>
-            <input
-              type="text"
-              required
-              value={medicineName}
-              onChange={(e) => setMedicineName(e.target.value)}
-              placeholder="e.g. Oxytetracycline 200mg/ml"
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Medicine / Drug Name
+              </label>
+              <input autoComplete="off"
+                list="drug-reference-list"
+                type="text"
+                required
+                value={medicineName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setMedicineName(val);
+                  // Auto-fill withdrawal period if exact match is selected
+                  const selected = drugRefs.find(r => r.drugName === val);
+                  if (selected && selected.withdrawalPeriod) {
+                    setWithdrawalPeriod(String(selected.withdrawalPeriod));
+                  }
+                }}
+                placeholder="e.g. Oxytetracycline 200mg/ml"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <datalist id="drug-reference-list">
+                {drugRefs.map(drug => (
+                  <option key={drug.drugName} value={drug.drugName} />
+                ))}
+              </datalist>
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Manufacturer
               </label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 value={manufacturer}
                 onChange={(e) => setManufacturer(e.target.value)}
@@ -454,7 +498,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Batch Number
               </label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 required
                 value={batchNumber}
@@ -470,7 +514,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Current Stock (Units)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 required
                 value={stock}
@@ -482,7 +526,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Minimum Stock
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 required
                 value={minimumStock}
@@ -494,7 +538,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Unit Cost ($)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 step="0.01"
                 required
@@ -510,7 +554,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Expiry Date
               </label>
-              <input
+              <input autoComplete="off"
                 type="date"
                 required
                 value={expiryDate}
@@ -522,7 +566,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Storage Location
               </label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 value={storageLocation}
                 onChange={(e) => setStorageLocation(e.target.value)}
@@ -532,17 +576,33 @@ export default function InventoryPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Supplier / Distributor
-            </label>
-            <input
-              type="text"
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="AgriShield Global Supply Co."
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Supplier / Distributor
+              </label>
+              <input autoComplete="off"
+                type="text"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                placeholder="AgriShield Global Supply Co."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Withdrawal Period (Days)
+              </label>
+              <input autoComplete="off"
+                type="number"
+                min="0"
+                required
+                value={withdrawalPeriod}
+                onChange={(e) => setWithdrawalPeriod(e.target.value)}
+                placeholder="e.g. 14"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-4">

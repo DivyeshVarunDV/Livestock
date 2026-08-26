@@ -87,13 +87,17 @@ export default function NewTreatment() {
         setFormData(prev => ({
           ...prev,
           inventoryId: value,
-          drugName: selectedItem.medicineName
+          drugName: selectedItem.medicineName,
+          dosage: '10ml', // Auto-fill standard dosage as requested
+          withdrawalPeriod: String(selectedItem.withdrawalPeriod || '0'),
         }));
       } else {
         setFormData(prev => ({
           ...prev,
           inventoryId: '',
-          drugName: ''
+          drugName: '',
+          dosage: '',
+          withdrawalPeriod: '',
         }));
       }
     } else {
@@ -130,7 +134,7 @@ export default function NewTreatment() {
         body: JSON.stringify(payload),
       });
       
-      router.push(user?.role === 'VETERINARIAN' ? '/veterinarian/treatments' : '/treatments');
+      router.push(user?.role?.toLowerCase() === 'veterinarian' ? '/veterinarian/treatments' : '/treatments');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Failed to record treatment');
@@ -171,20 +175,15 @@ export default function NewTreatment() {
             </div>
             
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Select Medicine from Inventory (Optional)</label>
-              <select name="inventoryId" value={formData.inventoryId} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2 bg-white">
-                <option value="">-- Manual Entry --</option>
+              <label className="block text-sm font-medium text-gray-700">Medicine / Drug (from Inventory)</label>
+              <select required name="inventoryId" value={formData.inventoryId} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2 bg-white">
+                <option value="">-- Select Drug --</option>
                 {inventory.map(item => (
-                  <option key={item.id} value={item.id} disabled={item.stockQuantity <= 0}>
-                    {item.medicineName} ({item.stockQuantity} in stock)
+                  <option key={item.id} value={item.id} disabled={item.stock <= 0}>
+                    {item.medicineName} ({item.stock} in stock)
                   </option>
                 ))}
               </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Medicine / Drug</label>
-              <input required type="text" name="drugName" value={formData.drugName} onChange={handleChange} placeholder="Drug Name" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2" />
             </div>
             
             <div>

@@ -19,6 +19,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   farms        Farm[]
+  ownershipTransfersAsCurrent OwnershipTransfer[] @relation("CurrentOwner")
+  ownershipTransfersAsNew     OwnershipTransfer[] @relation("NewOwner")
+  approvedTransfers           OwnershipTransfer[] @relation("ApprovedBy")
 }
 
 model Farm {
@@ -27,10 +30,17 @@ model Farm {
   ownerId       String?
   owner         User?    @relation(fields: [ownerId], references: [id])
   ownerName     String // Plain text name of the owner
+  fullName      String?
+  farmerId      String?
   address       String
   contactNumber String
   location      String // GPS coordinates or text address
   animals       Animal[]
+  milkTests     MilkTest[]
+  violations    Violation[]
+  milkCollections MilkCollection[]
+  ownershipTransfersAsFrom    OwnershipTransfer[] @relation("FromFarm")
+  ownershipTransfersAsTo      OwnershipTransfer[] @relation("ToFarm")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -38,12 +48,19 @@ model Farm {
 model Animal {
   id            String         @id @default(uuid())
   tagNumber     String         @unique // RFID/Tag Number
+  animalCode    String?        @unique
   name          String
   species       String // CATTLE, SHEEP, PIG, GOAT, poultry, etc.
   breed         String
   gender        String // MALE, FEMALE
+  dateOfBirth   DateTime?
   age           Int // in months
   weight        Float // in kg
+  color         String?
+  identificationMark String?
+  photoUrl      String?
+  registrationDate DateTime?
+  currentStatus String?        @default("ACTIVE")
   status        String // HEALTHY, UNDER_TREATMENT, QUARANTINED
   mrlStatus     String // CLEARED, CLEARING_SOON, DO_NOT_SELL
   farmId        String
@@ -52,6 +69,12 @@ model Animal {
   vaccinations  Vaccination[]
   treatments    Treatment[]
   prescriptions Prescription[]
+  withdrawalRecords WithdrawalRecord[]
+  amuRecords        AmuRecord[]
+  milkCollections   MilkCollection[]
+  violations        Violation[]
+  ownershipTransfers OwnershipTransfer[]
+  milkTests         MilkTest[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -60,21 +83,36 @@ model HealthRecord {
   id               String   @id @default(uuid())
   animalId         String
   animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  recordCode       String?  @unique
   diseases         String
+  symptoms         String?
   diagnosis        String
+  treatment        String?
+  medicine         String?
   treatmentNotes   String
+  checkupDate      DateTime?
+  nextCheckupDate  DateTime?
+  notes            String?
   veterinarianId   String?
   veterinarianName String
   date             DateTime
+  status           String   @default("ACTIVE")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
 
 model Vaccination {
   id               String   @id @default(uuid())
+  vaccinationCode  String?  @unique
   animalId         String
   animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
   vaccineName      String
+  disease          String?
+  route            String?
+  batchNumber      String?
+  manufacturer     String?
+  cost             Float?
+  notes            String?
   vaccinationDate  DateTime
   nextDueDate      DateTime
   veterinarianId   String?
@@ -87,13 +125,23 @@ model Treatment {
   id                       String   @id @default(uuid())
   animalId                 String
   animal                   Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  disease                  String?
   drugName                 String
+  activeIngredient         String?
   dosage                   String
+  route                    String?
+  reason                   String?
+  notes                    String?
+  followUpRequired         Boolean  @default(false)
+  treatmentStartDate       DateTime?
+  treatmentEndDate         DateTime?
   administrationDate       DateTime
   withdrawalPeriod         Int // in days
   withdrawalCompletionDate DateTime
   veterinarianId           String?
   veterinarianName         String
+  withdrawalRecords        WithdrawalRecord[]
+  amuRecords               AmuRecord[]
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }
@@ -137,18 +185,19 @@ model LedgerBlock {
 }
 
 model Inventory {
-  id              String   @id @default(uuid())
-  medicineName    String
-  manufacturer    String
-  batchNumber     String
-  expiryDate      DateTime
-  stock           Int
-  minimumStock    Int      @default(10)
-  supplier        String
-  cost            Float    @default(0)
-  storageLocation String   @default("Main Pharmacy Room")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(uuid())
+  medicineName     String
+  manufacturer     String
+  batchNumber      String
+  expiryDate       DateTime
+  stock            Int
+  minimumStock     Int      @default(10)
+  supplier         String
+  cost             Float    @default(0)
+  storageLocation  String   @default("Main Pharmacy Room")
+  withdrawalPeriod Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Notification {
@@ -177,4 +226,137 @@ model AuditLog {
   ipAddress String?  @default("127.0.0.1")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WithdrawalRecord {
+  id                 String   @id @default(uuid())
+  withdrawalCode     String?
+  treatmentId        String
+  treatment          Treatment @relation(fields: [treatmentId], references: [id])
+  animalId           String
+  animal             Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  productType        String
+  medicine           String
+  treatmentDate      DateTime
+  withdrawalPeriod   Int
+  withdrawalEndDate  DateTime
+  status             String // RESTRICTED, WITHDRAWAL_COMPLETED
+  followUpRequired   Boolean
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model AmuRecord {
+  id                 String   @id @default(uuid())
+  amuCode            String?
+  animalId           String
+  animal             Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  treatmentId        String
+  treatment          Treatment @relation(fields: [treatmentId], references: [id])
+  medicine           String
+  activeIngredient   String?
+  dosage             String
+  route              String?
+  startDate          DateTime
+  endDate            DateTime?
+  reason             String?
+  veterinarianId     String?
+  veterinarianName   String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model MilkCollection {
+  id                 String   @id @default(uuid())
+  batchId            String?  @unique
+  collectionCode     String?  @unique
+  productType        String?
+  collectionCenter   String?
+  quantity           Float?
+  collectionDate     DateTime?
+  date               DateTime?
+  sourceReference    String?
+  animalId           String
+  animal             Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  farmId             String?
+  farm               Farm?    @relation(fields: [farmId], references: [id])
+  violations         Violation[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Violation {
+  id                 String   @id @default(uuid())
+  violationCode      String?  @unique
+  farmId             String?
+  farm               Farm?    @relation(fields: [farmId], references: [id])
+  animalId           String?
+  animal             Animal?  @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  type               String
+  description        String?
+  severity           String
+  productType        String?
+  date               DateTime
+  status             String
+  resolvedDate       DateTime?
+  notes              String?
+  veterinarianId     String?
+  veterinarianName   String?
+  collectionId       String?
+  milkCollection     MilkCollection? @relation(fields: [collectionId], references: [id])
+  batchId            String?
+  evidence           String?
+  adminRemarks       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model OwnershipTransfer {
+  id                 String   @id @default(uuid())
+  transferCode       String?  @unique
+  animalId           String
+  animal             Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  requestDate        DateTime
+  status             String   @default("PENDING")
+  reason             String?
+  approvalDate       DateTime?
+  resolvedDate       DateTime?
+  notes              String?
+  rejectionReason    String?
+  approvedById       String?
+  approvedBy         User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
+  currentOwnerId     String?
+  currentOwner       User?    @relation("CurrentOwner", fields: [currentOwnerId], references: [id])
+  newOwnerId         String?
+  newOwner           User?    @relation("NewOwner", fields: [newOwnerId], references: [id])
+  fromFarmId         String?
+  fromFarm           Farm?    @relation("FromFarm", fields: [fromFarmId], references: [id])
+  toFarmId           String?
+  toFarm             Farm?    @relation("ToFarm", fields: [toFarmId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model MilkTest {
+  id                 String   @id @default(uuid())
+  testCode           String?
+  sampleId           String?
+  batchId            String?
+  productType        String?
+  type               String?
+  location           String?
+  testingLocation    String?
+  recordedById       String?
+  recordedByName     String?
+  farmId             String?
+  farm               Farm?    @relation(fields: [farmId], references: [id])
+  animalId           String?
+  animal             Animal?  @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  testDate           DateTime
+  date               DateTime?
+  result             String
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

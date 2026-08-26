@@ -23,7 +23,10 @@ import {
   User as UserIcon,
   Stethoscope,
   Package,
-  Pill
+  Pill,
+  Droplets,
+  ArrowRightLeft,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
@@ -85,7 +88,10 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Prescriptions', href: '/prescriptions', icon: FileText },
     { name: 'Withdrawal Monitoring', href: '/withdrawal', icon: Clock },
     { name: 'MRL Compliance', href: '/mrl', icon: ShieldCheck },
-    { name: 'Laboratory', href: '/lab', icon: FlaskConical },
+    { name: 'Milk Collection', href: '/milk-collection', icon: Droplets },
+    { name: 'Milk Testing', href: '/milk-testing', icon: FlaskConical },
+    { name: 'Transfers', href: '/transfers', icon: ArrowRightLeft },
+    { name: 'Violations', href: '/violations', icon: ShieldAlert },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Settings', href: '/settings', icon: Settings },

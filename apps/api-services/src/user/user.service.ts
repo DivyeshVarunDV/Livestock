@@ -6,10 +6,13 @@ import * as bcrypt from 'bcrypt';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(query?: { search?: string; role?: string }) {
+  async findAll(query?: { search?: string; role?: string; status?: string }) {
     const where: any = {};
     if (query?.role && query.role !== 'ALL') {
       where.role = query.role;
+    }
+    if (query?.status && query.status !== 'ALL') {
+      where.status = query.status;
     }
     if (query?.search) {
       where.OR = [

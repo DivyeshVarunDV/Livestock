@@ -33,7 +33,10 @@ export class ReportService {
       where: { nextDueDate: { gte: new Date() } },
     });
 
-    // Group by vaccine name
+    const overdueCount = await this.prisma.vaccination.count({
+      where: { nextDueDate: { lt: new Date() } },
+    });
+
     const vaccineCounts = await this.prisma.vaccination.groupBy({
       by: ['vaccineName'],
       _count: true,
@@ -42,6 +45,7 @@ export class ReportService {
     return {
       totalVaccinations,
       upcomingCount,
+      overdueCount,
       vaccineCounts: vaccineCounts.map((item: any) => ({
         name: item.vaccineName,
         count: item._count,
@@ -51,31 +55,18 @@ export class ReportService {
 
   async getTreatmentReport() {
     const totalTreatments = await this.prisma.treatment.count();
+    const totalAmuRecords = await this.prisma.amuRecord.count();
     const drugCounts = await this.prisma.treatment.groupBy({
       by: ['drugName'],
       _count: true,
     });
 
-    // Monthly treatment counts for chart
     const treatments = await this.prisma.treatment.findMany({
       select: { administrationDate: true },
     });
 
     const monthlyCounts: Record<string, number> = {};
-    const monthNames = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     treatments.forEach((t: any) => {
       const date = new Date(t.administrationDate);
@@ -90,6 +81,7 @@ export class ReportService {
 
     return {
       totalTreatments,
+      totalAmuRecords,
       drugCounts: drugCounts.map((item: any) => ({
         name: item.drugName,
         count: item._count,
@@ -105,6 +97,10 @@ export class ReportService {
       _count: true,
     });
 
+    const activeWithdrawals = await this.prisma.withdrawalRecord.count({
+      where: { status: 'RESTRICTED' },
+    });
+
     const counts = mrlCounts.reduce((acc: any, curr: any) => {
       acc[curr.mrlStatus] = curr._count;
       return acc;
@@ -117,6 +113,7 @@ export class ReportService {
       cleared: counts['CLEARED'] || 0,
       clearingSoon: counts['CLEARING_SOON'] || 0,
       doNotSell: counts['DO_NOT_SELL'] || 0,
+      activeWithdrawals,
     };
   }
 
@@ -124,18 +121,39 @@ export class ReportService {
     await this.treatmentService.updateAnimalMrlStatuses();
     const totalFarms = await this.prisma.farm.count();
     const totalAnimals = await this.prisma.animal.count();
+    const activeAnimals = await this.prisma.animal.count({
+      where: {
+        OR: [
+          { currentStatus: 'ACTIVE' },
+          { currentStatus: null },
+        ],
+      },
+    });
     const underTreatment = await this.prisma.animal.count({
       where: { status: 'UNDER_TREATMENT' },
+    });
+    const animalsUnderWithdrawal = await this.prisma.withdrawalRecord.count({
+      where: { status: 'RESTRICTED' },
     });
     const vaccinationsDue = await this.prisma.vaccination.count({
       where: { nextDueDate: { lte: new Date() } },
     });
+    const vaccinationsCompleted = await this.prisma.vaccination.count();
     const activeMrlAlerts = await this.prisma.animal.count({
       where: { mrlStatus: { in: ['DO_NOT_SELL', 'CLEARING_SOON'] } },
     });
     const veterinaryPrescriptions = await this.prisma.prescription.count();
+    const pendingOwnershipTransfers = await this.prisma.ownershipTransfer.count({
+      where: { status: 'PENDING' },
+    });
+    const productTests = await this.prisma.milkTest.count();
+    const failedTests = await this.prisma.milkTest.count({
+      where: { result: 'FAIL' },
+    });
+    const activeInvestigations = await this.prisma.violation.count({
+      where: { status: { in: ['PENDING_INVESTIGATION', 'UNDER_REVIEW'] } },
+    });
 
-    // Recent activities (we can merge recent treatments, vaccinations, health records, etc.)
     const recentTreatments = await this.prisma.treatment.findMany({
       include: { animal: { select: { name: true, tagNumber: true } } },
       orderBy: { createdAt: 'desc' },
@@ -190,10 +208,8 @@ export class ReportService {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
-    // Monthly treatment trend
     const treatmentReport = await this.getTreatmentReport();
 
-    // Group animals by species
     const speciesCounts = await this.prisma.animal.groupBy({
       by: ['species'],
       _count: true,
@@ -203,10 +219,17 @@ export class ReportService {
       stats: {
         totalFarms,
         totalAnimals,
+        activeAnimals,
         underTreatment,
+        animalsUnderWithdrawal,
+        vaccinationsCompleted,
         vaccinationsDue,
         activeMrlAlerts,
         veterinaryPrescriptions,
+        pendingOwnershipTransfers,
+        productTests,
+        failedTests,
+        activeInvestigations,
       },
       recentActivities: activities.slice(0, 5),
       monthlyTreatments: treatmentReport.monthlyData,
