@@ -31,7 +31,7 @@ export default function TopNavbar() {
 
   const vetNavItems = [
     { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
-    { name: 'Animals', href: '/veterinarian/animals', icon: PawPrint },
+    { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
     { name: 'Withdrawal Timers', href: '/veterinarian/withdrawal', icon: Clock },
     { name: 'Pharmacy Inventory', href: '/veterinarian/inventory', icon: Package },
@@ -44,14 +44,11 @@ export default function TopNavbar() {
     { name: 'Collections', href: '/milk-collection', icon: Droplets },
     { name: 'Testing', href: '/milk-testing', icon: FlaskConical },
     { name: 'Violations', href: '/violations', icon: ShieldAlert },
-    { name: 'Animals', href: '/animals', icon: PawPrint },
-    { name: 'Search', href: '/reports', icon: Search },
   ];
 
   const adminNavItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Farms', href: '/farms', icon: Tractor },
-    { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/treatments', icon: Syringe },
     { name: 'Withdrawal', href: '/withdrawal', icon: Clock },
     { name: 'MRL Compliance', href: '/mrl', icon: Shield },
