@@ -69,15 +69,9 @@ async function main() {
       ownerId: farmer.id,
       ownerName: farmer.name,
       fullName: 'John Miller',
-      mobileNumber: '+1-555-0199',
-      governmentId: 'AP-FARM-001',
       address: '102 Rural Route 4, Greenfield',
-      village: 'Greenfield',
-      district: 'Krishna',
-      state: 'Andhra Pradesh',
       contactNumber: '+1-555-0199',
       location: '45.3842, -75.6981',
-      status: 'ACTIVE',
     },
   });
 
@@ -88,15 +82,9 @@ async function main() {
       ownerId: farmer.id,
       ownerName: farmer.name,
       fullName: 'John Miller',
-      mobileNumber: '+1-555-0244',
-      governmentId: 'AP-FARM-002',
       address: '405 Valley Road, Sunrise Crest',
-      village: 'Sunrise Crest',
-      district: 'Guntur',
-      state: 'Andhra Pradesh',
       contactNumber: '+1-555-0244',
       location: '45.4215, -75.6972',
-      status: 'ACTIVE',
     },
   });
 
@@ -292,6 +280,7 @@ async function main() {
         withdrawalPeriod: 5,
         withdrawalEndDate: addDays(subDays(now, 2), 5),
         status: 'RESTRICTED',
+        followUpRequired: false,
       },
       {
         withdrawalCode: 'WD002',
@@ -303,6 +292,7 @@ async function main() {
         withdrawalPeriod: 14,
         withdrawalEndDate: addDays(subDays(now, 12), 14),
         status: 'RESTRICTED',
+        followUpRequired: false,
       },
     ],
   });

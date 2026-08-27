@@ -54,12 +54,48 @@ const sampleLabRecords = [
 ];
 
 export default function LabPage() {
-  const [records] = useState(sampleLabRecords);
+  const [records, setRecords] = useState(sampleLabRecords);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Form state
+  const [animalId, setAnimalId] = useState('');
+  const [sampleType, setSampleType] = useState('Milk');
+  const [drugTested, setDrugTested] = useState('Penicillin G');
+  const [laboratory, setLaboratory] = useState('Central Vet Labs');
+  const [result, setResult] = useState('Pass');
+  const [mrlStatus, setMrlStatus] = useState('Compliant');
+  const [notes, setNotes] = useState('');
+  const [testDate, setTestDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+
+  const handleCreateLabTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!animalId.trim()) {
+      alert('Please enter Animal ID / Tag Number');
+      return;
+    }
+
+    const newRec = {
+      id: `LAB-2026-${Math.floor(100 + Math.random() * 900)}`,
+      animalId: animalId.trim(),
+      sampleType,
+      drugTested,
+      testDate: new Date(testDate).toISOString(),
+      result,
+      mrlStatus,
+      laboratory,
+      notes: notes || 'Routine quality check performed.'
+    };
+
+    setRecords(prev => [newRec, ...prev]);
+    setIsCreateOpen(false);
+    setAnimalId('');
+    setNotes('');
+  };
 
   const uniqueTypes = Array.from(new Set(records.map(r => r.sampleType)));
   const uniqueStatuses = Array.from(new Set(records.map(r => r.result)));
@@ -89,7 +125,10 @@ export default function LabPage() {
             <p className="text-gray-500 mt-1 text-sm">Manage laboratory samples, residue tests, test results, and MRL verification.</p>
           </div>
           
-          <button className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm">
+          <button 
+            onClick={() => setIsCreateOpen(true)}
+            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm cursor-pointer"
+          >
             <Plus size={18} />
             Add Laboratory Test
           </button>
@@ -279,6 +318,134 @@ export default function LabPage() {
               </div>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Create Modal */}
+      {isCreateOpen && (
+        <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Add Laboratory Test Record" icon={FlaskConical}>
+          <form onSubmit={handleCreateLabTest} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Animal ID / Tag Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={animalId}
+                  onChange={(e) => setAnimalId(e.target.value)}
+                  placeholder="e.g. TAG-84920"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sample Type</label>
+                <select
+                  value={sampleType}
+                  onChange={(e) => setSampleType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white"
+                >
+                  <option value="Milk">Milk</option>
+                  <option value="Blood">Blood</option>
+                  <option value="Tissue">Tissue</option>
+                  <option value="Urine">Urine</option>
+                  <option value="Feed">Feed Sample</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Drug Tested</label>
+                <input
+                  type="text"
+                  value={drugTested}
+                  onChange={(e) => setDrugTested(e.target.value)}
+                  placeholder="e.g. Penicillin G"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Laboratory</label>
+                <input
+                  type="text"
+                  value={laboratory}
+                  onChange={(e) => setLaboratory(e.target.value)}
+                  placeholder="e.g. Central Vet Labs"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Test Result</label>
+                <select
+                  value={result}
+                  onChange={(e) => {
+                    setResult(e.target.value);
+                    if (e.target.value === 'Pass') setMrlStatus('Compliant');
+                    else if (e.target.value === 'Fail') setMrlStatus('Non-Compliant');
+                    else setMrlStatus('Pending Review');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white font-medium"
+                >
+                  <option value="Pass">Pass (Compliant)</option>
+                  <option value="Fail">Fail (Non-Compliant)</option>
+                  <option value="Pending">Pending Review</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">MRL Status</label>
+                <select
+                  value={mrlStatus}
+                  onChange={(e) => setMrlStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white font-medium"
+                >
+                  <option value="Compliant">Compliant</option>
+                  <option value="Non-Compliant">Non-Compliant</option>
+                  <option value="Pending Review">Pending Review</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Test Date</label>
+                <input
+                  type="date"
+                  value={testDate}
+                  onChange={(e) => setTestDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes & Observations</label>
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Enter any testing findings, residue levels, or observations..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer"
+              >
+                Save Laboratory Test
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
