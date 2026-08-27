@@ -6,6 +6,7 @@ import Loader from '@/components/Loader';
 import Modal from '@/components/Modal';
 import { ShieldAlert, Plus, RefreshCw, Search, Eye, AlertTriangle, CheckCircle2, Clock, FileText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getProductsForSpecies } from '@/app/milk-collection/page';
 
 export default function ViolationsPage() {
   const [data, setData] = useState<any[]>([]);
@@ -375,7 +376,19 @@ export default function ViolationsPage() {
                 </label>
                 <select
                   value={animalId}
-                  onChange={(e) => setAnimalId(e.target.value)}
+                  onChange={(e) => {
+                    const newAnimalId = e.target.value;
+                    setAnimalId(newAnimalId);
+                    if (newAnimalId) {
+                      const selectedAnimal = animals.find((a: any) => a.id === newAnimalId);
+                      if (selectedAnimal) {
+                        const validProds = getProductsForSpecies(selectedAnimal.species);
+                        if (!validProds.some(p => p.value === productType)) {
+                          setProductType(validProds[0]?.value || 'MILK');
+                        }
+                      }
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white"
                 >
                   <option value="">-- None / Batch Level --</option>
@@ -401,20 +414,37 @@ export default function ViolationsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Type
-                </label>
-                <select
-                  value={productType}
-                  onChange={(e) => setProductType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white"
-                >
-                  <option value="MILK">Milk</option>
-                  <option value="MEAT">Meat</option>
-                  <option value="EGGS">Eggs</option>
-                  <option value="HONEY">Honey</option>
-                  <option value="DAIRY">Dairy Products</option>
-                </select>
+                {(() => {
+                  const selectedAnimal = animals.find((a: any) => a.id === animalId);
+                  const availableProducts = selectedAnimal
+                    ? getProductsForSpecies(selectedAnimal.species)
+                    : [
+                        { value: 'MILK', label: 'Milk' },
+                        { value: 'MEAT', label: 'Meat' },
+                        { value: 'EGGS', label: 'Eggs' },
+                        { value: 'HONEY', label: 'Honey' },
+                        { value: 'DAIRY', label: 'Dairy Products' },
+                      ];
+
+                  return (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Product Type {selectedAnimal && <span className="text-xs font-normal text-emerald-700">({selectedAnimal.species} products)</span>}
+                      </label>
+                      <select
+                        value={productType}
+                        onChange={(e) => setProductType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white"
+                      >
+                        {availableProducts.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  );
+                })()}
               </div>
 
               <div>

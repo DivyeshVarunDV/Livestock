@@ -7,6 +7,63 @@ import Modal from '@/components/Modal';
 import { Droplets, Plus, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
+export function getProductsForSpecies(species?: string) {
+  const s = (species || '').trim().toUpperCase();
+  if (['CATTLE', 'COW', 'BOVINE', 'DAIRY_COW', 'BULL', 'CALF'].includes(s)) {
+    return [
+      { value: 'MILK', label: 'Milk (Cow / Bovine Milk)' },
+      { value: 'MEAT', label: 'Meat (Beef / Veal)' },
+    ];
+  }
+  if (['BUFFALO', 'WATER_BUFFALO'].includes(s)) {
+    return [
+      { value: 'MILK', label: 'Buffalo Milk' },
+      { value: 'MEAT', label: 'Meat' },
+    ];
+  }
+  if (['GOAT', 'CAPRINE'].includes(s)) {
+    return [
+      { value: 'MILK', label: 'Goat Milk' },
+      { value: 'MEAT', label: 'Chevon / Goat Meat' },
+    ];
+  }
+  if (['SHEEP', 'OVINE', 'LAMB'].includes(s)) {
+    return [
+      { value: 'MILK', label: 'Sheep Milk' },
+      { value: 'MEAT', label: 'Mutton / Lamb Meat' },
+      { value: 'WOOL', label: 'Wool' },
+    ];
+  }
+  if (['POULTRY', 'CHICKEN', 'HEN', 'DUCK', 'TURKEY', 'QUAIL', 'GOOSE', 'AVIAN'].includes(s)) {
+    return [
+      { value: 'EGGS', label: 'Eggs' },
+      { value: 'MEAT', label: 'Poultry / Chicken Meat' },
+    ];
+  }
+  if (['PIG', 'SWINE', 'HOG', 'PORCINE'].includes(s)) {
+    return [
+      { value: 'MEAT', label: 'Pork / Meat' },
+    ];
+  }
+  if (['BEE', 'BEES', 'HONEYBEE', 'APICULTURE'].includes(s)) {
+    return [
+      { value: 'HONEY', label: 'Honey' },
+      { value: 'BEESWAX', label: 'Beeswax' },
+    ];
+  }
+  if (['CAMEL', 'CAMELID'].includes(s)) {
+    return [
+      { value: 'MILK', label: 'Camel Milk' },
+      { value: 'MEAT', label: 'Camel Meat' },
+    ];
+  }
+  // Default fallback for generic livestock
+  return [
+    { value: 'MILK', label: 'Milk' },
+    { value: 'MEAT', label: 'Meat' },
+  ];
+}
+
 export default function milkcollectionPage() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +119,15 @@ export default function milkcollectionPage() {
         a.farm?.farmerId?.toLowerCase().includes(searchFarmerId.toLowerCase())
       );
       setFarmerAnimals(filtered);
+      if (filtered.length > 0) {
+        setSelectedAnimalId(filtered[0].id);
+        setSelectedFarmId(filtered[0].farmId || '');
+        const validProds = getProductsForSpecies(filtered[0].species);
+        setProductType(validProds[0]?.value || 'MILK');
+      } else {
+        setSelectedAnimalId('');
+        setSelectedFarmId('');
+      }
       setStep(2);
     } catch (e: any) {
       alert(e.message || 'Failed to fetch animals');
@@ -244,6 +310,10 @@ export default function milkcollectionPage() {
                             onChange={() => {
                               setSelectedAnimalId(animal.id);
                               setSelectedFarmId(animal.farmId || '');
+                              const validProds = getProductsForSpecies(animal.species);
+                              if (!validProds.some(p => p.value === productType)) {
+                                setProductType(validProds[0]?.value || 'MILK');
+                              }
                             }}
                           />
                           <div className="flex-1">
@@ -267,23 +337,40 @@ export default function milkcollectionPage() {
                 )}
               </div>
 
-              {farmerAnimals.length > 0 && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Batch ID</label>
-                    <input type="text" required value={batchId} onChange={(e) => setBatchId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm" placeholder="e.g. BATCH-001" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
-                    <select value={productType} onChange={(e) => setProductType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm">
-                      <option value="MILK">Milk</option>
-                      <option value="MEAT">Meat</option>
-                      <option value="EGGS">Eggs</option>
-                      <option value="HONEY">Honey</option>
-                    </select>
-                  </div>
-                </>
-              )}
+              {farmerAnimals.length > 0 && (() => {
+                const selectedAnimal = farmerAnimals.find((a) => a.id === selectedAnimalId);
+                const availableProducts = selectedAnimal
+                  ? getProductsForSpecies(selectedAnimal.species)
+                  : [
+                      { value: 'MILK', label: 'Milk' },
+                      { value: 'MEAT', label: 'Meat' },
+                    ];
+
+                return (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Batch ID</label>
+                      <input type="text" required value={batchId} onChange={(e) => setBatchId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm" placeholder="e.g. BATCH-001" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Product Type {selectedAnimal && <span className="text-xs font-normal text-emerald-700">({selectedAnimal.species} products)</span>}
+                      </label>
+                      <select
+                        value={productType}
+                        onChange={(e) => setProductType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white"
+                      >
+                        {availableProducts.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
