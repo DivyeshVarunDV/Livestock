@@ -13,6 +13,11 @@ export class OwnershipTransferController {
     return this.service.findAll();
   }
 
+  @Get('farm-animals/:farmerId')
+  async getAnimalsByFarmerId(@Param('farmerId') farmerId: string) {
+    return this.service.getAnimalsByFarmerId(farmerId);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.service.findOne(id);

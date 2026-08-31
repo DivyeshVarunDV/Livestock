@@ -286,7 +286,13 @@ export default function TreatmentsPage() {
             </div>
 
             <div className="mt-4">
-              <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Audit Trail</h3>
+              <div className="flex items-center gap-2 mb-3">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Audit Trail</h3>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                  Secured by Hyperledger Fabric
+                </span>
+              </div>
               <div className="space-y-3">
                 {auditLogs.filter((log) => log.entity === 'TREATMENT' && log.entityId === selectedTreatment.id).length > 0 ? (
                   auditLogs.filter((log) => log.entity === 'TREATMENT' && log.entityId === selectedTreatment.id).map((log, index) => {

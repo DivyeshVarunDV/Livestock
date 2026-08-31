@@ -5,9 +5,12 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Clearing database...');
+  await prisma.productClearance.deleteMany({});
+  await prisma.medicineDispensing.deleteMany({});
   await prisma.violation.deleteMany({});
   await prisma.milkTest.deleteMany({});
   await prisma.milkCollection.deleteMany({});
+  await prisma.collectionBatch.deleteMany({});
   await prisma.ownershipTransfer.deleteMany({});
   await prisma.withdrawalRecord.deleteMany({});
   await prisma.amuRecord.deleteMany({});

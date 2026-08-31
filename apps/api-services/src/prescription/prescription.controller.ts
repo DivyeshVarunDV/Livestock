@@ -17,8 +17,13 @@ export class PrescriptionController {
   constructor(private readonly prescriptionService: PrescriptionService) {}
 
   @Get()
-  async findAll() {
-    return this.prescriptionService.findAll();
+  async findAll(@Query('animalId') animalId?: string, @Query('status') status?: string) {
+    return this.prescriptionService.findAll(animalId, status);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.prescriptionService.findOne(id);
   }
 
   @Post()

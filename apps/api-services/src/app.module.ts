@@ -18,6 +18,9 @@ import { MilkTestModule } from './milk-test/milk-test.module';
 import { ViolationModule } from './violation/violation.module';
 import { OwnershipTransferModule } from './ownership-transfer/ownership-transfer.module';
 import { AmuModule } from './amu/amu.module';
+import { MedicineDispensingModule } from './medicine-dispensing/medicine-dispensing.module';
+import { CollectionBatchModule } from './collection-batch/collection-batch.module';
+import { ProductClearanceModule } from './product-clearance/product-clearance.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { AmuModule } from './amu/amu.module';
     ViolationModule,
     OwnershipTransferModule,
     AmuModule,
+    MedicineDispensingModule,
+    CollectionBatchModule,
+    ProductClearanceModule,
   ],
 })
 export class AppModule {}

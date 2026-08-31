@@ -68,7 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
     } else if (role === 'tester') {
       // Tester can access tester tools and specific shared resources
-      const testerRoutes = ['/tester', '/farms', '/milk-collection', '/milk-testing', '/violations', '/animals', '/reports'];
+      const testerRoutes = ['/tester', '/farms', '/milk-collection', '/milk-testing', '/violations', '/animals', '/reports', '/product-clearances'];
       if (!testerRoutes.some(r => pathname.startsWith(r))) {
         isAllowed = false;
       }

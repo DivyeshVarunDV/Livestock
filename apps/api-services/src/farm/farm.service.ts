@@ -51,49 +51,51 @@ export class FarmService {
   }
 
   async create(dto: any) {
+    let finalFarmerId = dto.farmerId;
+    if (!finalFarmerId) {
+      const count = await this.prisma.farm.count();
+      finalFarmerId = `FARM${String(count + 1).padStart(3, '0')}`;
+    }
+
     const data: any = {
       name: dto.name,
+      farmerId: finalFarmerId,
       ownerName: dto.ownerName || dto.fullName || 'Unknown Owner',
       fullName: dto.fullName || dto.ownerName || dto.name,
       address: dto.address,
       contactNumber: dto.contactNumber || dto.mobileNumber || '',
+      mobileNumber: dto.mobileNumber || dto.contactNumber || null,
       location: dto.location,
+      village: dto.village || null,
+      district: dto.district || null,
+      state: dto.state || null,
+      governmentId: dto.governmentId || null,
+      registrationDate: dto.registrationDate ? new Date(dto.registrationDate) : new Date(),
+      farmStatus: dto.farmStatus || 'ACTIVE',
     };
     if (dto.ownerId) {
       data.owner = { connect: { id: dto.ownerId } };
     }
 
-    const created = await this.prisma.farm.create({ data });
-
-    let finalFarmerId = dto.farmerId;
-    if (!finalFarmerId) {
-      const lastFarm = await this.prisma.farm.findFirst({
-        where: { farmerId: { startsWith: 'FARM-' } },
-        orderBy: { createdAt: 'desc' }
-      });
-      let nextNum = 1001;
-      if (lastFarm && lastFarm.farmerId) {
-        const match = lastFarm.farmerId.match(/FARM-(\d+)/);
-        if (match) {
-          nextNum = parseInt(match[1], 10) + 1;
-        } else {
-          nextNum = (await this.prisma.farm.count()) + 1001;
-        }
-      } else {
-        nextNum = (await this.prisma.farm.count()) + 1001;
-      }
-      finalFarmerId = `FARM-${nextNum}`;
-    }
-
-    return this.prisma.farm.update({
-      where: { id: created.id },
-      data: {
-        farmerId: finalFarmerId,
-      },
+    const created = await this.prisma.farm.create({
+      data,
       include: {
         owner: { select: { id: true, name: true, email: true } },
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userName: dto.ownerName || 'Admin',
+        role: 'ADMIN',
+        action: 'Farm Registered',
+        entity: 'FARM',
+        entityId: created.id,
+        newValue: JSON.stringify({ farmerId: finalFarmerId, name: dto.name, district: dto.district }),
+      },
+    });
+
+    return created;
   }
 
   async update(id: string, dto: any) {
@@ -104,8 +106,17 @@ export class FarmService {
       fullName: dto.fullName,
       address: dto.address,
       contactNumber: dto.contactNumber,
+      mobileNumber: dto.mobileNumber,
       location: dto.location,
+      village: dto.village,
+      district: dto.district,
+      state: dto.state,
+      governmentId: dto.governmentId,
+      farmStatus: dto.farmStatus,
     };
+    if (dto.registrationDate !== undefined) {
+      data.registrationDate = dto.registrationDate ? new Date(dto.registrationDate) : null;
+    }
     if (dto.ownerId) {
       data.owner = { connect: { id: dto.ownerId } };
     }

@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard, PawPrint, Tractor, Syringe, Clock, BarChart3,
   Bell, LogOut, User, Settings, Users, ClipboardList, Menu, X, ChevronDown,
-  Shield, Package, Pill, FileText, FlaskConical, Droplets, ShieldAlert, Search
+  Shield, Package, Pill, FileText, FlaskConical, Droplets, ShieldAlert, Search, ArrowRightLeft
 } from 'lucide-react';
 
 export default function TopNavbar() {
@@ -33,15 +33,18 @@ export default function TopNavbar() {
     { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
     { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/veterinarian/treatments', icon: Syringe },
-    { name: 'Withdrawal Timers', href: '/veterinarian/withdrawal', icon: Clock },
-    { name: 'Pharmacy Inventory', href: '/veterinarian/inventory', icon: Package },
-    { name: 'Drug Reference', href: '/veterinarian/drug-reference', icon: Pill },
+    { name: 'Prescriptions', href: '/veterinarian/prescriptions', icon: FileText },
+    { name: 'Dispensing', href: '/veterinarian/dispensing', icon: Pill },
+    { name: 'Transfers', href: '/transfers', icon: ArrowRightLeft },
+    { name: 'Withdrawal', href: '/veterinarian/withdrawal', icon: Clock },
+    { name: 'Inventory', href: '/veterinarian/inventory', icon: Package },
   ];
 
   const testerNavItems = [
     { name: 'Dashboard', href: '/tester/dashboard', icon: LayoutDashboard },
-    { name: 'Farms', href: '/farms', icon: Tractor },
+    { name: 'Clearance', href: '/tester/clearance', icon: Shield },
     { name: 'Collections', href: '/milk-collection', icon: Droplets },
+    { name: 'Batches', href: '/tester/batches', icon: Package },
     { name: 'Testing', href: '/milk-testing', icon: FlaskConical },
     { name: 'Violations', href: '/violations', icon: ShieldAlert },
   ];
@@ -49,11 +52,14 @@ export default function TopNavbar() {
   const adminNavItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Farms', href: '/farms', icon: Tractor },
+    { name: 'Animals', href: '/animals', icon: PawPrint },
     { name: 'Treatments', href: '/treatments', icon: Syringe },
     { name: 'Withdrawal', href: '/withdrawal', icon: Clock },
-    { name: 'MRL Compliance', href: '/mrl', icon: Shield },
-    { name: 'Inventory', href: '/inventory', icon: Package },
+    { name: 'MRL', href: '/mrl', icon: Shield },
+    { name: 'Investigations', href: '/admin/investigations', icon: ShieldAlert },
+    { name: 'Transfers', href: '/transfers', icon: ArrowRightLeft },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
+    { name: 'Audit Log', href: '/audit', icon: ClipboardList },
   ];
 
   const mainNavItems = isVet ? vetNavItems : isTester ? testerNavItems : adminNavItems;

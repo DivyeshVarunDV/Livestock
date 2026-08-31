@@ -5,192 +5,650 @@ import { apiFetch } from '@/lib/api';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import {
-  PawPrint, Syringe, AlertTriangle, FileText,
-  Activity, Pill, ClipboardList, Package, Clock, Calendar,
-  ArrowRight, CheckCircle2, AlertOctagon
+  PawPrint,
+  Syringe,
+  AlertTriangle,
+  FileText,
+  Activity,
+  Search,
+  User,
+  Tractor,
+  Phone,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ArrowRightLeft,
+  Pill,
+  Plus,
+  ArrowRight,
+  ShieldCheck,
+  Building,
+  RefreshCw,
 } from 'lucide-react';
 
-export default function VetDashboard() {
+export default function VetFarmerCentricDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [animals, setAnimals] = useState<any[]>([]);
-  const [treatments, setTreatments] = useState<any[]>([]);
-  const [withdrawalAlerts, setWithdrawalAlerts] = useState<any[]>([]);
-  const [inventoryAlerts, setInventoryAlerts] = useState<{ lowStock: any[]; expiringSoon: any[] }>({ lowStock: [], expiringSoon: [] });
-  const [vaccinations, setVaccinations] = useState<any[]>([]);
-  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [farms, setFarms] = useState<any[]>([]);
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string>('');
+  const [selectedFarm, setSelectedFarm] = useState<any>(null);
+  const [farmerAnimals, setFarmerAnimals] = useState<any[]>([]);
+  const [farmerTreatments, setFarmerTreatments] = useState<any[]>([]);
+  const [farmerPrescriptions, setFarmerPrescriptions] = useState<any[]>([]);
+  const [farmerTransfers, setFarmerTransfers] = useState<any[]>([]);
+  const [farmerDispensings, setFarmerDispensings] = useState<any[]>([]);
+  const [farmerLoading, setFarmerLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'ANIMALS' | 'WITHDRAWALS' | 'PRESCRIPTIONS' | 'TREATMENTS' | 'TRANSFERS'>('ANIMALS');
+  const [farmerSearch, setFarmerSearch] = useState('');
 
+  // Load initial list of all farms
   useEffect(() => {
-    const fetchData = async () => {
+    async function loadFarms() {
+      setLoading(true);
       try {
-        const [animalsData, treatmentsData, alertsData, invAlerts, vaccsData, prescData] = await Promise.all([
-          apiFetch('/animals').catch(() => []),
-          apiFetch('/treatments').catch(() => []),
-          apiFetch('/treatments/alerts').catch(() => []),
-          apiFetch('/inventory/alerts').catch(() => ({ lowStock: [], expiringSoon: [] })),
-          apiFetch('/vaccinations/upcoming').catch(() => []),
-          apiFetch('/prescriptions').catch(() => []),
-        ]);
-
-        setAnimals(Array.isArray(animalsData) ? animalsData : []);
-        setTreatments(Array.isArray(treatmentsData) ? treatmentsData : []);
-        setWithdrawalAlerts(Array.isArray(alertsData) ? alertsData : []);
-        setInventoryAlerts(invAlerts || { lowStock: [], expiringSoon: [] });
-        setVaccinations(Array.isArray(vaccsData) ? vaccsData : []);
-        setPrescriptions(Array.isArray(prescData) ? prescData : []);
-      } catch (error) {
-        console.error('Failed to load vet dashboard data:', error);
+        const res = await apiFetch('/farms').catch(() => []);
+        const list = Array.isArray(res) ? res : [];
+        setFarms(list);
+        // Default to first farmer if available or check localStorage
+        const storedFarmerId = typeof window !== 'undefined' ? localStorage.getItem('vet_selected_farmer') : null;
+        const initial = list.find((f: any) => f.farmerId === storedFarmerId || f.id === storedFarmerId) || list[0];
+        if (initial) {
+          selectFarmer(initial.farmerId || initial.id, initial);
+        }
+      } catch (err) {
+        console.error('Failed to load farms:', err);
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
+    }
+    loadFarms();
   }, []);
+
+  // When farmer is selected, fetch all specific data for this farmer
+  const selectFarmer = async (farmerId: string, farmObj?: any) => {
+    setSelectedFarmerId(farmerId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vet_selected_farmer', farmerId);
+    }
+    setFarmerLoading(true);
+    try {
+      const targetFarm = farmObj || farms.find((f) => f.farmerId === farmerId || f.id === farmerId);
+      setSelectedFarm(targetFarm || null);
+
+      if (targetFarm) {
+        const [animalsRes, treatmentsRes, prescriptionsRes, transfersRes, dispensingRes] = await Promise.all([
+          apiFetch(`/animals?farmId=${targetFarm.id}`).catch(() => []),
+          apiFetch('/treatments').catch(() => []),
+          apiFetch('/prescriptions').catch(() => []),
+          apiFetch('/ownership-transfers').catch(() => []),
+          apiFetch('/medicine-dispensing').catch(() => []),
+        ]);
+
+        const animalsList = Array.isArray(animalsRes) ? animalsRes : [];
+        const animalIds = new Set(animalsList.map((a: any) => a.id));
+
+        setFarmerAnimals(animalsList);
+        setFarmerTreatments((Array.isArray(treatmentsRes) ? treatmentsRes : []).filter((t: any) => animalIds.has(t.animalId)));
+        setFarmerPrescriptions((Array.isArray(prescriptionsRes) ? prescriptionsRes : []).filter((p: any) => animalIds.has(p.animalId)));
+        setFarmerTransfers(
+          (Array.isArray(transfersRes) ? transfersRes : []).filter(
+            (tr: any) => tr.fromFarmId === targetFarm.id || tr.toFarmId === targetFarm.id || animalIds.has(tr.animalId)
+          )
+        );
+        setFarmerDispensings((Array.isArray(dispensingRes) ? dispensingRes : []).filter((d: any) => animalIds.has(d.animalId)));
+      }
+    } catch (err) {
+      console.error('Error fetching farmer data:', err);
+    } finally {
+      setFarmerLoading(false);
+    }
+  };
+
+  const activeWithdrawals = farmerAnimals.filter((a) => a.mrlStatus === 'RESTRICTED' || a.mrlStatus === 'DO_NOT_SELL');
+  const underTreatmentCount = farmerAnimals.filter((a) => a.status === 'UNDER_TREATMENT' || a.currentStatus === 'UNDER_TREATMENT').length;
+  const clearedCount = farmerAnimals.filter((a) => a.mrlStatus === 'CLEARED').length;
+
+  const filteredFarms = farms.filter((f) => {
+    const s = farmerSearch.toLowerCase();
+    return (
+      (f.farmerId || '').toLowerCase().includes(s) ||
+      (f.ownerName || f.fullName || '').toLowerCase().includes(s) ||
+      (f.name || '').toLowerCase().includes(s) ||
+      (f.contactNumber || f.mobileNumber || '').toLowerCase().includes(s) ||
+      (f.district || '').toLowerCase().includes(s)
+    );
+  });
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#F8FAFC]">
-        <div className="text-center animate-pulse">
-          <div className="w-12 h-12 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-gray-900 text-lg font-bold">LivestoCare Veterinary</h2>
-          <p className="text-gray-500 text-sm mt-1">Loading Clinical Dashboard...</p>
-        </div>
+      <div className="flex h-screen items-center justify-center text-gray-500 font-medium">
+        <RefreshCw size={24} className="animate-spin text-emerald-700 mr-2" /> Loading Veterinarian Portal...
       </div>
     );
   }
 
-  const activeTreatmentsCount = treatments.filter((t) => t.withdrawalCompletionDate && new Date(t.withdrawalCompletionDate) > new Date()).length;
-  const underWithdrawalCount = withdrawalAlerts.length;
-  const lowStockCount = inventoryAlerts?.lowStock?.length || 0;
-  const pendingTransferCount = animals.reduce((count, animal) => count + (animal.ownershipTransfers?.filter((item: any) => item.status === 'PENDING').length || 0), 0);
-
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
-      <div className="bg-gradient-to-r from-[#064E3B] to-[#047857] rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-semibold backdrop-blur-sm mb-2">
-            <Activity size={14} className="animate-pulse text-emerald-300" />
-            Veterinary Clinical Portal
+    <div className="space-y-6">
+      {/* Top Banner: Veterinarian Header + Farmer Consultation Selector */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">
+              <Activity size={15} /> Clinical Consultation Portal
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Welcome, {user?.name || 'Dr. Veterinarian'}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Select or search a specific farmer below to review clinical dossier, animal health, active withdrawals, and issue treatments.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Welcome back, {user?.name || 'Dr. Veterinarian'}</h1>
-          <p className="text-emerald-100 text-sm mt-1 max-w-2xl">Monitor animal health, treatments, withdrawals, vaccination due dates, and transfer requests.</p>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/treatments/new"
+              className="inline-flex items-center gap-1.5 bg-[#064E3B] hover:bg-[#065F46] text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+              <Syringe size={14} /> Record Treatment
+            </Link>
+            <Link
+              href="/prescriptions/new"
+              className="inline-flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+              <FileText size={14} /> New Prescription
+            </Link>
+            <Link
+              href="/veterinarian/dispensing"
+              className="inline-flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+              <Pill size={14} /> Dispense Medicine
+            </Link>
+            <Link
+              href="/transfers"
+              className="inline-flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+              <ArrowRightLeft size={14} /> Transfer Animal
+            </Link>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/treatments/new" className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#064E3B] hover:bg-emerald-50 rounded-xl font-bold text-sm shadow-md transition-all hover:scale-105">
-            <Syringe size={18} className="text-emerald-700" /> Record Treatment
-          </Link>
-          <Link href="/prescriptions/new" className="flex items-center gap-2 px-4 py-2.5 bg-emerald-800/80 hover:bg-emerald-800 text-white rounded-xl font-semibold text-sm border border-emerald-600/50 transition-colors">
-            <FileText size={18} /> New Prescription
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/veterinarian/animals" className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all block group">
-          <div className="flex items-start justify-between mb-3"><span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Animals Under Care</span><div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform"><PawPrint size={20} /></div></div>
-          <div className="text-3xl font-extrabold text-gray-900">{animals.length}</div>
-          <div className="text-xs text-gray-500 mt-1 font-medium">{animals.filter((a) => a.status === 'UNDER_TREATMENT').length} animals in treatment</div>
-        </Link>
-
-        <Link href="/veterinarian/treatments" className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all block group">
-          <div className="flex items-start justify-between mb-3"><span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Treatments</span><div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform"><Syringe size={20} /></div></div>
-          <div className="text-3xl font-extrabold text-gray-900">{activeTreatmentsCount}</div>
-          <div className="text-xs text-gray-500 mt-1 font-medium">{treatments.length} total treatment records</div>
-        </Link>
-
-        <Link href="/veterinarian/withdrawal" className="bg-white rounded-xl border border-amber-200 bg-amber-50/20 p-5 shadow-sm hover:border-amber-400 hover:shadow-md transition-all block group">
-          <div className="flex items-start justify-between mb-3"><span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Withdrawal Locked</span><div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 group-hover:scale-110 transition-transform"><Clock size={20} /></div></div>
-          <div className="text-3xl font-extrabold text-amber-900">{underWithdrawalCount}</div>
-          <div className="text-xs text-amber-700 font-semibold mt-1 flex items-center gap-1"><AlertOctagon size={13} /> Active product restrictions</div>
-        </Link>
-
-        <Link href="/transfers" className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all block group">
-          <div className="flex items-start justify-between mb-3"><span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Transfers</span><div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 group-hover:scale-110 transition-transform"><ClipboardList size={20} /></div></div>
-          <div className="text-3xl font-extrabold text-gray-900">{pendingTransferCount}</div>
-          <div className="text-xs text-gray-500 mt-1 font-medium">Awaiting admin decision</div>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></div><h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Live Animals in Withdrawal</h2></div>
-            <Link href="/veterinarian/withdrawal" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1">View All <ArrowRight size={13} /></Link>
-          </div>
-          <div className="divide-y divide-gray-100 flex-1">
-            {withdrawalAlerts.length === 0 ? (
-              <div className="p-8 text-center flex flex-col items-center justify-center"><CheckCircle2 size={40} className="text-emerald-500 mb-2" /><h3 className="text-sm font-bold text-gray-900">All Animals Cleared</h3><p className="text-xs text-gray-500 mt-1 max-w-sm">No active withdrawal periods at the moment.</p></div>
-            ) : (
-              withdrawalAlerts.slice(0, 5).map((a, i) => {
-                const treatment = a.treatments?.[0];
-                const compDate = treatment?.withdrawalCompletionDate ? new Date(treatment.withdrawalCompletionDate) : new Date();
-                const diffMs = compDate.getTime() - new Date().getTime();
-                const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-                const isUrgent = daysLeft > 3;
-                return (
-                  <div key={i} className="p-4 hover:bg-gray-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}><AlertTriangle size={18} /></div>
-                      <div>
-                        <div className="flex items-center gap-2"><Link href={`/animals/${a.id}`} className="font-bold text-sm text-gray-900 hover:text-emerald-700 hover:underline">{a.tagNumber} ({a.name})</Link></div>
-                        <div className="text-xs text-gray-500 mt-0.5">Medicine: <span className="font-semibold text-gray-800">{treatment?.drugName || 'Unknown'}</span> • Farm: {a.farm?.name || 'Local Farm'}</div>
-                      </div>
-                    </div>
-                    <div className="text-right"><div className="text-xs font-bold text-gray-900">{daysLeft > 0 ? `${daysLeft} days remaining` : 'Clearing Today'}</div><div className="text-[10px] text-gray-400">Clears {compDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</div></div>
-                  </div>
+        {/* Farmer Selector Search Bar */}
+        <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              list="vet-farmers-list"
+              type="text"
+              placeholder="Search or Select Farmer ID / Name / Mobile (e.g. FARM001, John Miller)..."
+              value={farmerSearch}
+              onChange={(e) => {
+                setFarmerSearch(e.target.value);
+                const matched = farms.find(
+                  (f) =>
+                    f.farmerId?.toLowerCase() === e.target.value.trim().toLowerCase() ||
+                    f.name?.toLowerCase() === e.target.value.trim().toLowerCase() ||
+                    f.ownerName?.toLowerCase() === e.target.value.trim().toLowerCase()
                 );
-              })
-            )}
+                if (matched) {
+                  selectFarmer(matched.farmerId || matched.id, matched);
+                }
+              }}
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 outline-none bg-gray-50/50"
+            />
+            <datalist id="vet-farmers-list">
+              {farms.map((f) => (
+                <option key={f.id} value={f.farmerId || f.name}>
+                  {f.ownerName || f.fullName} - {f.name} ({f.district || 'District'}) - {f.contactNumber || f.mobileNumber || ''}
+                </option>
+              ))}
+            </datalist>
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            <select
+              value={selectedFarmerId}
+              onChange={(e) => {
+                const target = farms.find((f) => f.farmerId === e.target.value || f.id === e.target.value);
+                if (target) selectFarmer(target.farmerId || target.id, target);
+              }}
+              className="px-3 py-2 text-xs font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-600 outline-none"
+            >
+              <option value="">-- Choose Registered Farmer --</option>
+              {farms.map((f) => (
+                <option key={f.id} value={f.farmerId || f.id}>
+                  {f.farmerId || 'FARM'} - {f.ownerName || f.fullName} ({f.name})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+      </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Veterinary Tools</h3>
-            <div className="grid grid-cols-2 gap-2.5">
-              <Link href="/treatments/new" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"><div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform"><Syringe size={16} /></div><span className="text-xs font-bold text-gray-800">Record Treatment</span></Link>
-              <Link href="/prescriptions/new" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"><div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform"><FileText size={16} /></div><span className="text-xs font-bold text-gray-800">New Prescription</span></Link>
-              <Link href="/veterinarian/inventory" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform"><Package size={16} /></div><span className="text-xs font-bold text-gray-800">Medicine Pharmacy</span></Link>
-              <Link href="/veterinarian/drug-reference" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-center group"><div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform"><Pill size={16} /></div><span className="text-xs font-bold text-gray-800">Drug Reference</span></Link>
+      {/* Selected Farmer Profile Dossier Banner */}
+      {selectedFarm ? (
+        <div className="space-y-6 animate-fade-in">
+          {/* Farmer Card */}
+          <div className="bg-gradient-to-r from-[#064E3B] to-[#065F46] text-white rounded-xl shadow-sm p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-emerald-400 text-emerald-950">
+                  {selectedFarm.farmerId || 'FARM'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-white/20 text-white">
+                  STATUS: {selectedFarm.farmStatus || 'ACTIVE'}
+                </span>
+              </div>
+              <h2 className="text-2xl font-extrabold mt-2 tracking-tight">
+                {selectedFarm.ownerName || selectedFarm.fullName || selectedFarm.name}
+              </h2>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-emerald-100/90 mt-2 font-medium">
+                <span className="flex items-center gap-1.5"><Building size={14} /> Farm: <strong>{selectedFarm.name}</strong></span>
+                <span className="flex items-center gap-1.5"><Phone size={14} /> Contact: <strong>{selectedFarm.contactNumber || selectedFarm.mobileNumber || 'N/A'}</strong></span>
+                <span className="flex items-center gap-1.5"><MapPin size={14} /> Location: <strong>{selectedFarm.village ? `${selectedFarm.village}, ` : ''}{selectedFarm.district || selectedFarm.address || 'N/A'}</strong></span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <Link
+                href={`/prescriptions/new?farmerId=${selectedFarm.farmerId || selectedFarm.id}`}
+                className="bg-white text-[#064E3B] hover:bg-emerald-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <FileText size={14} /> Prescribe for this Farmer
+              </Link>
+              <Link
+                href={`/transfers`}
+                className="bg-emerald-900/60 hover:bg-emerald-900 text-white border border-emerald-400/30 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <ArrowRightLeft size={14} /> Transfer an Animal
+              </Link>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3"><h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><Package size={14} className="text-emerald-700" /> Pharmacy Medicine Alerts</h3><Link href="/veterinarian/inventory" className="text-xs font-bold text-emerald-700 hover:underline">Manage</Link></div>
-            {inventoryAlerts.lowStock && inventoryAlerts.lowStock.length > 0 ? (
-              <div className="space-y-2.5">{inventoryAlerts.lowStock.slice(0, 3).map((item, idx) => <div key={idx} className="p-2.5 rounded-lg bg-red-50/60 border border-red-100 flex items-center justify-between text-xs"><div><div className="font-bold text-gray-900">{item.medicineName}</div><div className="text-red-700 font-semibold mt-0.5">Stock: {item.stock} / min {item.minimumStock}</div></div><Link href="/veterinarian/inventory" className="px-2 py-1 bg-white border border-red-200 text-red-700 rounded font-bold text-[10px] hover:bg-red-50">Restock</Link></div>)}</div>
-            ) : (
-              <div className="text-xs text-gray-500 py-3 text-center bg-gray-50 rounded-lg">No low stock alerts. All medicine supplies are adequate.</div>
+          {/* Farmer Specific KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Farmer's Livestock</div>
+              <div className="text-3xl font-extrabold text-gray-900">{farmerAnimals.length}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Under Treatment</div>
+              <div className="text-3xl font-extrabold text-blue-700">{underTreatmentCount}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-xs font-bold text-red-600 uppercase tracking-wider mb-1">Withdrawal Restricted</div>
+              <div className="text-3xl font-extrabold text-red-700">{activeWithdrawals.length}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Cleared for Market</div>
+              <div className="text-3xl font-extrabold text-emerald-700">{clearedCount}</div>
+            </div>
+          </div>
+
+          {/* Tab Navigation for Selected Farmer */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex border-b border-gray-200 bg-gray-50/70 overflow-x-auto">
+              <button
+                onClick={() => setActiveTab('ANIMALS')}
+                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'ANIMALS'
+                    ? 'border-[#064E3B] text-[#064E3B] bg-white'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <PawPrint size={14} /> Registered Livestock ({farmerAnimals.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('WITHDRAWALS')}
+                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'WITHDRAWALS'
+                    ? 'border-red-600 text-red-700 bg-white'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <AlertTriangle size={14} className={activeWithdrawals.length > 0 ? 'text-red-600' : ''} />
+                Withdrawal Restrictions ({activeWithdrawals.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('PRESCRIPTIONS')}
+                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'PRESCRIPTIONS'
+                    ? 'border-[#064E3B] text-[#064E3B] bg-white'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <FileText size={14} /> Digital Prescriptions ({farmerPrescriptions.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('TREATMENTS')}
+                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'TREATMENTS'
+                    ? 'border-[#064E3B] text-[#064E3B] bg-white'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Syringe size={14} /> Treatments &amp; AMU ({farmerTreatments.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('TRANSFERS')}
+                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'TRANSFERS'
+                    ? 'border-[#064E3B] text-[#064E3B] bg-white'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <ArrowRightLeft size={14} /> Ownership Transfers ({farmerTransfers.length})
+              </button>
+            </div>
+
+            {/* TAB CONTENT 1: Registered Animals */}
+            {activeTab === 'ANIMALS' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Animal Code / Tag</th>
+                      <th className="px-5 py-3.5">Name</th>
+                      <th className="px-5 py-3.5">Species / Breed</th>
+                      <th className="px-5 py-3.5">Age &amp; Weight</th>
+                      <th className="px-5 py-3.5">Health Status</th>
+                      <th className="px-5 py-3.5">MRL Clearance</th>
+                      <th className="px-5 py-3.5 text-right">Clinical Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {farmerAnimals.map((animal) => {
+                      const isRestricted = animal.mrlStatus === 'RESTRICTED' || animal.mrlStatus === 'DO_NOT_SELL';
+                      return (
+                        <tr key={animal.id} className="hover:bg-gray-50/80 transition-colors">
+                          <td className="px-5 py-4 font-mono font-bold text-gray-900">
+                            {animal.animalCode || animal.tagNumber}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-gray-900">
+                            <Link href={`/animals/${animal.id}`} className="hover:text-emerald-700 hover:underline">
+                              {animal.name}
+                            </Link>
+                          </td>
+                          <td className="px-5 py-4 text-xs text-gray-600">
+                            {animal.species} • {animal.breed}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-gray-600">
+                            {animal.age ? `${animal.age} mos` : 'N/A'} • {animal.weight ? `${animal.weight} kg` : 'N/A'}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                animal.status === 'HEALTHY'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {animal.status || 'HEALTHY'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                isRestricted ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {isRestricted ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
+                              {animal.mrlStatus || 'CLEARED'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end gap-1.5">
+                              <Link
+                                href={`/treatments/new?animalId=${animal.id}`}
+                                title="Treat Animal"
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-xs font-bold transition-colors"
+                              >
+                                Treat
+                              </Link>
+                              <Link
+                                href={`/prescriptions/new?animalId=${animal.id}`}
+                                title="Prescribe Medicine"
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded text-xs font-bold transition-colors"
+                              >
+                                Prescribe
+                              </Link>
+                              <Link
+                                href={`/animals/${animal.id}`}
+                                title="View Dossier"
+                                className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded text-xs font-bold transition-colors"
+                              >
+                                Dossier
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {farmerAnimals.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-10 text-center text-gray-500">
+                          No animals registered for this farmer.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB CONTENT 2: Active Withdrawal Restrictions */}
+            {activeTab === 'WITHDRAWALS' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Animal Code / Tag</th>
+                      <th className="px-5 py-3.5">Animal Name</th>
+                      <th className="px-5 py-3.5">Restricted Products</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5 text-right">Clinical Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {activeWithdrawals.map((animal) => (
+                      <tr key={animal.id} className="hover:bg-red-50/40 transition-colors">
+                        <td className="px-5 py-4 font-mono font-bold text-gray-900">{animal.animalCode || animal.tagNumber}</td>
+                        <td className="px-5 py-4 font-semibold text-gray-900">{animal.name}</td>
+                        <td className="px-5 py-4 text-xs font-bold text-red-700">MILK, MEAT (Under Active Withdrawal)</td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                            DO NOT COLLECT / SELL
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <Link
+                            href={`/animals/${animal.id}`}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors"
+                          >
+                            Inspect History
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                    {activeWithdrawals.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-10 text-center text-emerald-700 font-semibold">
+                          <CheckCircle2 size={24} className="mx-auto mb-2" />
+                          All animals for this farmer are cleared from withdrawal restrictions.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB CONTENT 3: Digital Prescriptions */}
+            {activeTab === 'PRESCRIPTIONS' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Prescription Code</th>
+                      <th className="px-5 py-3.5">Animal</th>
+                      <th className="px-5 py-3.5">Medicine</th>
+                      <th className="px-5 py-3.5">Dosage / Duration</th>
+                      <th className="px-5 py-3.5">Veterinarian</th>
+                      <th className="px-5 py-3.5">Date</th>
+                      <th className="px-5 py-3.5 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {farmerPrescriptions.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4 font-mono font-bold text-gray-900">{p.prescriptionCode || p.id.slice(0, 8)}</td>
+                        <td className="px-5 py-4 font-semibold text-emerald-800">{p.animal?.animalCode || p.animal?.tagNumber || p.animalId}</td>
+                        <td className="px-5 py-4 font-medium text-gray-900">{p.medicine}</td>
+                        <td className="px-5 py-4 text-xs text-gray-600">{p.dosage} ({p.duration} days)</td>
+                        <td className="px-5 py-4 text-xs text-gray-700">{p.veterinarianName}</td>
+                        <td className="px-5 py-4 text-xs text-gray-500">{new Date(p.prescriptionDate || p.createdAt).toLocaleDateString()}</td>
+                        <td className="px-5 py-4 text-right">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                            {p.status || 'ACTIVE'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {farmerPrescriptions.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-10 text-center text-gray-500">
+                          No prescriptions issued for this farmer's animals yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB CONTENT 4: Treatments & AMU */}
+            {activeTab === 'TREATMENTS' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Animal</th>
+                      <th className="px-5 py-3.5">Drug Administered</th>
+                      <th className="px-5 py-3.5">Dosage</th>
+                      <th className="px-5 py-3.5">Withdrawal Period</th>
+                      <th className="px-5 py-3.5">Administration Date</th>
+                      <th className="px-5 py-3.5 text-right">Clearance Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {farmerTreatments.map((t) => (
+                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4 font-bold text-gray-900">{t.animal?.animalCode || t.animal?.tagNumber || t.animalId}</td>
+                        <td className="px-5 py-4 font-semibold text-emerald-800">{t.drugName}</td>
+                        <td className="px-5 py-4 text-xs text-gray-700">{t.dosage}</td>
+                        <td className="px-5 py-4 text-xs text-gray-700">{t.withdrawalPeriod} days</td>
+                        <td className="px-5 py-4 text-xs text-gray-500">{new Date(t.administrationDate).toLocaleDateString()}</td>
+                        <td className="px-5 py-4 text-right font-bold text-amber-700 text-xs">
+                          {t.withdrawalCompletionDate ? new Date(t.withdrawalCompletionDate).toLocaleDateString() : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                    {farmerTreatments.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-10 text-center text-gray-500">
+                          No treatment records for this farmer's animals.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB CONTENT 5: Ownership Transfers */}
+            {activeTab === 'TRANSFERS' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Code</th>
+                      <th className="px-5 py-3.5">Animal</th>
+                      <th className="px-5 py-3.5">From</th>
+                      <th className="px-5 py-3.5">To</th>
+                      <th className="px-5 py-3.5">Reason</th>
+                      <th className="px-5 py-3.5 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {farmerTransfers.map((tr) => (
+                      <tr key={tr.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4 font-mono font-bold text-gray-900">{tr.transferCode || tr.id.slice(0, 8)}</td>
+                        <td className="px-5 py-4 font-semibold text-gray-900">{tr.animal?.name || tr.animal?.animalCode}</td>
+                        <td className="px-5 py-4 text-xs text-gray-600">{tr.fromFarm?.farmerId || tr.fromFarm?.name}</td>
+                        <td className="px-5 py-4 text-xs text-emerald-800 font-semibold">{tr.toFarm?.farmerId || tr.toFarm?.name}</td>
+                        <td className="px-5 py-4 text-xs text-gray-700">{tr.reason || 'N/A'}</td>
+                        <td className="px-5 py-4 text-right">
+                          <span
+                            className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                              tr.status === 'APPROVED' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {tr.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {farmerTransfers.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-10 text-center text-gray-500">
+                          No transfer records involving this farmer.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      ) : (
+        /* When no farmer is selected, display the complete registered farmers directory */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Tractor size={20} className="text-emerald-700" /> Select a Registered Farmer to Begin Consultation
+          </h2>
+          <p className="text-xs text-gray-500">
+            Click on any farmer to open their specific livestock registry, health cards, active withdrawal timers, and prescription history.
+          </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50"><h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Recent Clinical Treatments</h2><Link href="/veterinarian/treatments" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1">All Treatments <ArrowRight size={13} /></Link></div>
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead className="bg-gray-50 text-gray-400 uppercase font-semibold text-[10px] border-b border-gray-100"><tr><th className="px-4 py-2.5">Animal</th><th className="px-4 py-2.5">Medicine</th><th className="px-4 py-2.5">Dosage</th><th className="px-4 py-2.5">Date</th><th className="px-4 py-2.5">Withdrawal</th><th className="px-4 py-2.5 text-right">Status</th></tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {treatments.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No recent treatments recorded.</td></tr> : treatments.slice(0, 6).map((t, i) => {
-                  const compDate = t.withdrawalCompletionDate ? new Date(t.withdrawalCompletionDate) : null;
-                  const isActive = compDate && compDate > new Date();
-                  return <tr key={i} className="hover:bg-gray-50/50 transition-colors"><td className="px-4 py-3 font-bold text-gray-900"><Link href={`/animals/${t.animalId}`} className="hover:text-emerald-700 hover:underline">{t.animal?.tagNumber || t.animalId?.substring(0, 8)}</Link></td><td className="px-4 py-3 font-semibold text-gray-800">{t.drugName || t.medicine}</td><td className="px-4 py-3 text-gray-600">{t.dosage}</td><td className="px-4 py-3 text-gray-500">{t.administrationDate ? new Date(t.administrationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}</td><td className="px-4 py-3 text-gray-600">{t.withdrawalPeriod ? `${t.withdrawalPeriod} days` : 'None'}</td><td className="px-4 py-3 text-right"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${isActive ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{isActive ? 'In Withdrawal' : 'Cleared'}</span></td></tr>;
-                })}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            {filteredFarms.map((farm) => (
+              <div
+                key={farm.id}
+                onClick={() => selectFarmer(farm.farmerId || farm.id, farm)}
+                className="p-5 bg-gray-50 hover:bg-emerald-50/70 border border-gray-200 hover:border-emerald-500 rounded-xl cursor-pointer transition-all shadow-sm flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex justify-between items-start">
+                    <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-emerald-100 text-emerald-800">
+                      {farm.farmerId || 'FARM'}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-500">{farm.district || 'District'}</span>
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 mt-2">{farm.ownerName || farm.fullName || farm.name}</h3>
+                  <p className="text-xs text-gray-600 mt-0.5 font-medium">{farm.name}</p>
+                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Phone size={12} /> {farm.contactNumber || farm.mobileNumber || 'No phone'}</p>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center text-xs font-bold text-[#064E3B]">
+                  <span>Select Farmer Dossier</span>
+                  <ArrowRight size={15} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50"><h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5"><Calendar size={15} className="text-purple-600" /> Vaccinations Due</h2><Link href="/veterinarian/animals" className="text-xs font-bold text-emerald-700 hover:underline">View All</Link></div>
-          <div className="divide-y divide-gray-100 flex-1">
-            {vaccinations.length === 0 ? <div className="p-6 text-center text-xs text-gray-400">No upcoming vaccinations scheduled.</div> : vaccinations.slice(0, 5).map((v, i) => <div key={i} className="p-3.5 hover:bg-gray-50/60 transition-colors flex items-center justify-between text-xs"><div><div className="font-bold text-gray-900">{v.animal?.name || v.animal?.tagNumber || 'Animal'}</div><div className="text-gray-500 text-[11px] mt-0.5">{v.vaccineName}</div></div><span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[11px]">{v.nextDueDate ? new Date(v.nextDueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Soon'}</span></div>)}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -22,7 +22,7 @@ export async function apiFetch(endpoint: string, options: ApiFetchOptions = {}) 
     } catch {
       controller.abort();
     }
-  }, 4000);
+  }, 10000);
 
   try {
     const response = await fetch(url, {

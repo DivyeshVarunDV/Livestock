@@ -50,6 +50,8 @@ export default function AnimalProfile() {
 
   const events: any[] = [];
   (animal.treatments || []).forEach((t: any) => events.push({ date: t.administrationDate, type: 'Treatment recorded', detail: `${t.drugName} • ${t.dosage}`, icon: Syringe, color: 'text-blue-500', bg: 'bg-blue-100' }));
+  (animal.prescriptions || []).forEach((p: any) => events.push({ date: p.prescriptionDate, type: 'Prescription issued', detail: `${p.prescriptionCode || 'RX'} • ${p.medicine} • ${p.dosage}`, icon: FileText, color: 'text-cyan-500', bg: 'bg-cyan-100' }));
+  (animal.medicineDispensings || []).forEach((d: any) => events.push({ date: d.dispensedDate, type: 'Medicine dispensed', detail: `${d.dispensingCode || 'DISP'} • ${d.medicine} • Qty: ${d.quantity}`, icon: FlaskConical, color: 'text-teal-500', bg: 'bg-teal-100' }));
   (animal.vaccinations || []).forEach((v: any) => events.push({ date: v.vaccinationDate, type: 'Vaccination recorded', detail: v.vaccineName, icon: Syringe, color: 'text-purple-500', bg: 'bg-purple-100' }));
   (animal.healthRecords || []).forEach((h: any) => events.push({ date: h.date, type: 'Health record', detail: h.diagnosis, icon: Activity, color: 'text-green-500', bg: 'bg-green-100' }));
   (animal.ownershipTransfers || []).forEach((t: any) => events.push({ date: t.requestDate, type: 'Ownership transfer', detail: `${t.fromFarm?.farmerId || '-'} → ${t.toFarm?.farmerId || '-'}`, icon: History, color: 'text-indigo-500', bg: 'bg-indigo-100' }));
@@ -136,7 +138,9 @@ export default function AnimalProfile() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {[{ title: 'Health History', rows: animal.healthRecords || [], icon: Activity, color: 'text-green-500', render: (row: any) => `${row.diagnosis}${row.symptoms ? ` • ${row.symptoms}` : ''}` },
+            {[{ title: 'Prescriptions', rows: animal.prescriptions || [], icon: FileText, color: 'text-cyan-500', render: (row: any) => `${row.prescriptionCode || 'RX'} • ${row.medicine} • ${row.dosage}` },
+              { title: 'Dispensing Records', rows: animal.medicineDispensings || [], icon: FlaskConical, color: 'text-teal-500', render: (row: any) => `${row.dispensingCode || 'DISP'} • ${row.medicine} • Qty: ${row.quantity}` },
+              { title: 'Health History', rows: animal.healthRecords || [], icon: Activity, color: 'text-green-500', render: (row: any) => `${row.diagnosis}${row.symptoms ? ` • ${row.symptoms}` : ''}` },
               { title: 'Vaccination History', rows: animal.vaccinations || [], icon: Syringe, color: 'text-purple-500', render: (row: any) => `${row.vaccineName}${row.nextDueDate ? ` • Next due ${new Date(row.nextDueDate).toLocaleDateString()}` : ''}` },
               { title: 'Treatment History', rows: animal.treatments || [], icon: Clock, color: 'text-blue-500', render: (row: any) => `${row.drugName} • ${row.dosage} • ${row.withdrawalPeriod} days` },
               { title: 'AMU History', rows: animal.amuRecords || [], icon: FlaskConical, color: 'text-amber-500', render: (row: any) => `${row.medicine} • ${row.dosage}${row.route ? ` • ${row.route}` : ''}` },

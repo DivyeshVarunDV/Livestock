@@ -69,3 +69,65 @@ export function calculateAMU(treatments: any[]): AMUAnalytics {
 
   return result;
 }
+
+export interface AMUAnomaly {
+  type: 'SPIKE' | 'OUTBREAK_WARNING';
+  farmId: string;
+  drugName: string;
+  severity: 'HIGH' | 'CRITICAL';
+  message: string;
+}
+
+export function detectAMUAnomalies(treatments: any[]): AMUAnomaly[] {
+  const anomalies: AMUAnomaly[] = [];
+  
+  if (!treatments || treatments.length < 10) return anomalies;
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  // Map to track usage by farm and drug
+  const recentUsage: Record<string, number> = {};
+  const historicalUsage: Record<string, number[]> = {};
+
+  treatments.forEach((t) => {
+    const date = new Date(t.administrationDate);
+    if (isNaN(date.getTime())) return;
+
+    const farmId = t.animal?.farm?.name || t.animal?.farmId || 'Unknown';
+    const drugName = t.drugName || 'Unknown';
+    const doseUnits = parseDosageToNumber(t.dosage);
+    const key = `${farmId}::${drugName}`;
+
+    if (date > thirtyDaysAgo) {
+      recentUsage[key] = (recentUsage[key] || 0) + doseUnits;
+    } else if (date > ninetyDaysAgo) {
+      if (!historicalUsage[key]) historicalUsage[key] = [];
+      historicalUsage[key].push(doseUnits);
+    }
+  });
+
+  // Simple ML-style statistical anomaly detection
+  Object.keys(recentUsage).forEach((key) => {
+    const [farmId, drugName] = key.split('::');
+    const currentVol = recentUsage[key];
+    const hist = historicalUsage[key] || [];
+    
+    if (hist.length > 3) {
+      const avg = hist.reduce((a, b) => a + b, 0) / hist.length;
+      // If current 30-day volume is > 200% of historical average, flag as spike
+      if (currentVol > avg * 2) {
+        anomalies.push({
+          type: currentVol > avg * 3 ? 'OUTBREAK_WARNING' : 'SPIKE',
+          farmId,
+          drugName,
+          severity: currentVol > avg * 3 ? 'CRITICAL' : 'HIGH',
+          message: `Detected ${(currentVol / avg * 100).toFixed(0)}% spike in ${drugName} usage at ${farmId}. Potential disease outbreak warning.`
+        });
+      }
+    }
+  });
+
+  return anomalies;
+}

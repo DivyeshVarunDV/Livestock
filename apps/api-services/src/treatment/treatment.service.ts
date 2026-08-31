@@ -103,6 +103,7 @@ export class TreatmentService {
     const treatment = await this.prisma.treatment.create({
       data: {
         animalId: dto.animalId,
+        prescriptionId: dto.prescriptionId || null,
         disease: dto.disease || null,
         drugName: dto.drugName,
         activeIngredient: dto.activeIngredient || null,
@@ -141,6 +142,29 @@ export class TreatmentService {
           notes: dto.notes || null,
         },
       });
+    }
+
+    // Update product clearance for each product type
+    for (const productType of withdrawalProducts) {
+      const existing = await this.prisma.productClearance.findFirst({
+        where: { animalId: dto.animalId, productType },
+      });
+      const clearanceData = {
+        status: withdrawalPeriod > 0 ? 'RESTRICTED' : 'CLEARED',
+        reason: withdrawalPeriod > 0 ? `Treatment: ${dto.drugName}` : null,
+        restrictionStart: withdrawalPeriod > 0 ? adminDate : null,
+        restrictionEnd: withdrawalPeriod > 0 ? withdrawalCompletionDate : null,
+      };
+      if (existing) {
+        await this.prisma.productClearance.update({
+          where: { id: existing.id },
+          data: clearanceData,
+        });
+      } else {
+        await this.prisma.productClearance.create({
+          data: { animalId: dto.animalId, productType, ...clearanceData },
+        });
+      }
     }
 
     if (dto.isAntimicrobial || dto.recordAmu) {

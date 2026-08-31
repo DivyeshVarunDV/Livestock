@@ -12,7 +12,7 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  role         String // ADMIN, VETERINARIAN, FARMER
+  role         String // ADMIN, VETERINARIAN, TESTER
   status       String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
   phone        String?
   department   String?
@@ -35,6 +35,13 @@ model Farm {
   address       String
   contactNumber String
   location      String // GPS coordinates or text address
+  village       String?
+  district      String?
+  state         String?
+  mobileNumber  String?
+  governmentId  String?
+  registrationDate DateTime?
+  farmStatus    String   @default("ACTIVE") // ACTIVE, INACTIVE
   animals       Animal[]
   milkTests     MilkTest[]
   violations    Violation[]
@@ -50,7 +57,7 @@ model Animal {
   tagNumber     String         @unique // RFID/Tag Number
   animalCode    String?        @unique
   name          String
-  species       String // CATTLE, SHEEP, PIG, GOAT, poultry, etc.
+  species       String // CATTLE, BUFFALO, GOAT, SHEEP, POULTRY, etc.
   breed         String
   gender        String // MALE, FEMALE
   dateOfBirth   DateTime?
@@ -60,7 +67,7 @@ model Animal {
   identificationMark String?
   photoUrl      String?
   registrationDate DateTime?
-  currentStatus String?        @default("ACTIVE")
+  currentStatus String?        @default("ACTIVE") // ACTIVE, SOLD, DEAD, TRANSFERRED
   status        String // HEALTHY, UNDER_TREATMENT, QUARANTINED
   mrlStatus     String // CLEARED, CLEARING_SOON, DO_NOT_SELL
   farmId        String
@@ -75,6 +82,8 @@ model Animal {
   violations        Violation[]
   ownershipTransfers OwnershipTransfer[]
   milkTests         MilkTest[]
+  medicineDispensings MedicineDispensing[]
+  productClearances   ProductClearance[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -125,6 +134,8 @@ model Treatment {
   id                       String   @id @default(uuid())
   animalId                 String
   animal                   Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  prescriptionId           String?
+  prescription             Prescription? @relation(fields: [prescriptionId], references: [id])
   disease                  String?
   drugName                 String
   activeIngredient         String?
@@ -148,16 +159,26 @@ model Treatment {
 
 model Prescription {
   id               String   @id @default(uuid())
+  prescriptionCode String?  @unique
   animalId         String
   animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  farmerId         String?
   medicine         String
+  activeIngredient String?
   veterinarianId   String?
   veterinarianName String
   dosage           String
+  route            String?
+  frequency        String?
   duration         Int
+  startDate        DateTime?
+  endDate          DateTime?
   instructions     String
+  applicableWithdrawalPeriod Int?
   prescriptionDate DateTime
-  status           String   @default("ACTIVE")
+  status           String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  treatments       Treatment[]
+  dispensingRecords MedicineDispensing[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -168,6 +189,12 @@ model MrlRule {
   species          String
   withdrawalPeriod Int // default in days
   mrlLimit         String? // e.g. "50 ug/kg"
+  substance        String?
+  applicableTissue String? // milk, meat, eggs, etc.
+  unit             String?
+  reference        String?
+  effectiveDate    DateTime?
+  status           String   @default("ACTIVE")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -243,6 +270,7 @@ model WithdrawalRecord {
   status             String // RESTRICTED, WITHDRAWAL_COMPLETED
   followUpRequired   Boolean
   notes              String?
+  productClearances  ProductClearance[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -281,6 +309,8 @@ model MilkCollection {
   animal             Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
   farmId             String?
   farm               Farm?    @relation(fields: [farmId], references: [id])
+  collectionBatchId  String?
+  collectionBatch    CollectionBatch? @relation(fields: [collectionBatchId], references: [id])
   violations         Violation[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -357,6 +387,62 @@ model MilkTest {
   date               DateTime?
   result             String
   notes              String?
+  substance          String?
+  measuredValue      Float?
+  measuredUnit       String?
+  applicableMRLValue Float?
+  complianceStatus   String? // COMPLIANT, NON_COMPLIANT, NOT_EVALUATED
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+// ==========================================
+// NEW MODELS
+// ==========================================
+
+model MedicineDispensing {
+  id              String   @id @default(uuid())
+  dispensingCode  String?  @unique
+  prescriptionId  String
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id])
+  animalId        String
+  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  medicine        String
+  quantity        Float
+  dispensedDate   DateTime
+  dispensedBy     String
+  dispensedById   String?
+  batchNumber     String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CollectionBatch {
+  id               String   @id @default(uuid())
+  batchCode        String   @unique
+  productType      String
+  collectionDate   DateTime
+  collectionCenter String?
+  status           String   @default("CREATED") // CREATED, COLLECTED, TESTING, PASSED, FAILED, UNDER_INVESTIGATION, RELEASED, REJECTED
+  notes            String?
+  collections      MilkCollection[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ProductClearance {
+  id                  String   @id @default(uuid())
+  animalId            String
+  animal              Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  productType         String // MILK, MEAT, EGGS, OTHER
+  status              String // CLEARED, RESTRICTED, UNDER_INVESTIGATION
+  reason              String?
+  restrictionStart    DateTime?
+  restrictionEnd      DateTime?
+  relatedWithdrawalId String?
+  relatedWithdrawal   WithdrawalRecord? @relation(fields: [relatedWithdrawalId], references: [id])
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

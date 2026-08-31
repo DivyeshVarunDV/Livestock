@@ -27,6 +27,16 @@ export class AnimalController {
     return this.animalService.findOne(id);
   }
 
+  @Get(':id/timeline')
+  async getTimeline(@Param('id') id: string) {
+    return this.animalService.getTimeline(id);
+  }
+
+  @Get(':id/clearance')
+  async getClearance(@Param('id') id: string) {
+    return this.animalService.getClearance(id);
+  }
+
   @Post()
   async create(@Body() dto: any) {
     return this.animalService.create(dto);
