@@ -5,73 +5,20 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import Modal from '@/components/Modal';
 
-const defaultDemoUsers = [
-  {
-    id: 'u1',
-    userId: 'GOV-USR-1001',
-    name: 'Dr. Rajeshwar Sharma, DVM',
-    email: 'r.sharma.dvo@dahd.gov.in',
-    phone: '+91 98765-12001',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    lastLogin: '31 Jul 2026, 21:40 IST',
-    department: 'Joint Commissioner (Livestock Health), DAH&D New Delhi',
-    createdAt: '2026-01-10T08:00:00Z',
-  },
-  {
-    id: 'u2',
-    userId: 'GOV-USR-1002',
-    name: 'Dr. Ananya Iyer, MVSc',
-    email: 'ananya.iyer@nic.in',
-    phone: '+91 98110-34821',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    lastLogin: '31 Jul 2026, 19:15 IST',
-    department: 'NIC e-Governance Systems Lead, NDDB Anand',
-    createdAt: '2026-01-15T09:30:00Z',
-  },
-  {
-    id: 'u3',
-    userId: 'GOV-USR-1003',
-    name: 'Dr. Vikramaditya Rathore, DVM',
-    email: 'v.rathore.vet@punjab.gov.in',
-    phone: '+91 94172-88310',
-    role: 'VETERINARIAN',
-    status: 'ACTIVE',
-    lastLogin: '31 Jul 2026, 16:50 IST',
-    department: 'Senior Veterinary Officer, Ludhiana District Veterinary Hospital',
-    createdAt: '2026-02-01T11:00:00Z',
-  },
-  {
-    id: 'u4',
-    userId: 'GOV-USR-1004',
-    name: 'Dr. Priya Deshmukh, DVM',
-    email: 'dr.priya@mahavet.gov.in',
-    phone: '+91 98221-44509',
-    role: 'VETERINARIAN',
-    status: 'ACTIVE',
-    lastLogin: '31 Jul 2026, 14:10 IST',
-    department: 'District Livestock Officer, Nashik Regional HQ',
-    createdAt: '2026-02-12T14:20:00Z',
-  },
-  {
-    id: 'u5',
-    userId: 'GOV-USR-1005',
-    name: 'Sardar Harbhajan Singh',
-    email: 'h.singh@khalsadairy.in',
-    phone: '+91 98140-55912',
-    role: 'FARMER',
-    status: 'ACTIVE',
-    lastLogin: '31 Jul 2026, 11:25 IST',
-    department: 'Owner - Khalsa Heritage Dairy Farm (Amritsar)',
-    createdAt: '2026-03-05T10:15:00Z',
-  },
-];
+/** Random temporary password that satisfies the server policy (upper, lower, digit, symbol, 14 chars). */
+function generateTempPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = new Uint32Array(10);
+  crypto.getRandomValues(bytes);
+  const body = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+  return `Lc#${body}9a`;
+}
 
 export default function UsersPage() {
   const { user } = useAuth();
-  const [users, setUsers] = useState<any[]>(defaultDemoUsers);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -96,6 +43,7 @@ export default function UsersPage() {
 
 
   async function loadUsers() {
+    setLoading(true);
     try {
       const q = new URLSearchParams();
       if (roleFilter !== 'ALL') q.append('role', roleFilter);
@@ -103,13 +51,13 @@ export default function UsersPage() {
       if (search) q.append('search', search);
 
       const data = await apiFetch(`/users?${q.toString()}`);
-      if (Array.isArray(data)) {
-        setUsers(data);
-      } else {
-        setUsers(defaultDemoUsers);
-      }
-    } catch {
-      setUsers(defaultDemoUsers);
+      setUsers(Array.isArray(data) ? data : []);
+      setLoadError('');
+    } catch (e: any) {
+      setUsers([]);
+      setLoadError(e?.message || 'Unable to load the user directory.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -135,7 +83,7 @@ export default function UsersPage() {
       setPhone('');
       setDepartment('Livestock Operations');
       setStatus('ACTIVE');
-      setPassword('AgriShield#2026');
+      setPassword(generateTempPassword());
     }
     setModalOpen(true);
   };
@@ -149,7 +97,7 @@ export default function UsersPage() {
       phone,
       department,
       status,
-      ...(password ? { password } : {}),
+      ...(password && !editUser ? { password } : {}),
     };
 
     try {
@@ -158,54 +106,22 @@ export default function UsersPage() {
           method: 'PUT',
           body: JSON.stringify(payload),
         });
-        setUsers(
-          users.map((u) =>
-            u.id === editUser.id ? { ...u, ...payload } : u
-          )
-        );
       } else {
-        const newIdNum = users.length + 1001;
-        const newUser = {
-          id: `u-${Date.now()}`,
-          userId: `GOV-USR-${newIdNum}`,
-          ...payload,
-          lastLogin: 'Just Registered',
-          createdAt: new Date().toISOString(),
-        };
         await apiFetch('/users', {
           method: 'POST',
-          body: JSON.stringify(newUser),
+          body: JSON.stringify(payload),
         });
-        setUsers([newUser, ...users]);
       }
       setModalOpen(false);
-    } catch {
-      // Offline fallback update
-      if (editUser) {
-        setUsers(
-          users.map((u) =>
-            u.id === editUser.id ? { ...u, ...payload } : u
-          )
-        );
-      } else {
-        const newIdNum = users.length + 1001;
-        const newUser = {
-          id: `u-${Date.now()}`,
-          userId: `GOV-USR-${newIdNum}`,
-          ...payload,
-          lastLogin: 'Just Registered',
-          createdAt: new Date().toISOString(),
-        };
-        setUsers([newUser, ...users]);
-      }
-      setModalOpen(false);
+      await loadUsers();
+    } catch (err: any) {
+      alert(err?.message || 'Could not save the user account.');
     }
   };
 
   const handleOpenResetModal = (targetUser: any) => {
     setResetTargetUser(targetUser);
-    const randomPin = Math.floor(100000 + Math.random() * 900000);
-    setTempPassword(`AgriGov-${randomPin}!`);
+    setTempPassword(generateTempPassword());
     setCopiedPass(false);
     setResetPassModal(true);
   };
@@ -217,11 +133,12 @@ export default function UsersPage() {
         method: 'PUT',
         body: JSON.stringify({ password: tempPassword }),
       });
-    } catch {
-      // offline silent fallback
+      setResetPassModal(false);
+      alert(`Temporary password for ${resetTargetUser.name} set to: ${tempPassword}\nThe user must change it at next sign-in; their existing sessions were signed out.`);
+      await loadUsers();
+    } catch (err: any) {
+      alert(err?.message || 'Password reset failed.');
     }
-    setResetPassModal(false);
-    alert(`Temporary password for ${resetTargetUser.name} set to: ${tempPassword}`);
   };
 
   const handleCopyPassword = () => {
@@ -239,26 +156,37 @@ export default function UsersPage() {
         method: 'PUT',
         body: JSON.stringify({ status: nextStatus }),
       });
-    } catch {}
-    setUsers(
-      users.map((item) =>
-        item.id === u.id ? { ...item, status: nextStatus } : item
-      )
-    );
+      await loadUsers();
+    } catch (err: any) {
+      alert(err?.message || 'Could not change the account status.');
+    }
+  };
+
+  const handleUnlock = async (u: any) => {
+    try {
+      await apiFetch(`/users/${u.id}/unlock`, { method: 'PUT' });
+      await loadUsers();
+    } catch (err: any) {
+      alert(err?.message || 'Could not unlock the account.');
+    }
   };
 
   const handleDeleteUser = async (id: string, userName: string) => {
     if (
       !confirm(
-        `Are you sure you want to permanently revoke & delete the system account for "${userName}"?`
+        `Are you sure you want to permanently delete the system account for "${userName}"?`
       )
     )
       return;
     try {
       await apiFetch(`/users/${id}`, { method: 'DELETE' });
-    } catch {}
-    setUsers(users.filter((u) => u.id !== id));
+      await loadUsers();
+    } catch (err: any) {
+      alert(err?.message || 'Could not delete the account.');
+    }
   };
+
+  const isLocked = (u: any) => Boolean(u.lockedUntil && new Date(u.lockedUntil).getTime() > Date.now());
 
   const filtered = users.filter((u) => {
     if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
@@ -323,6 +251,12 @@ export default function UsersPage() {
       </div>
 
 
+      {loadError && (
+        <div className="px-8">
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">{loadError}</div>
+        </div>
+      )}
+
       {/* 2. Statistics Cards */}
       <div className="px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Users Card */}
@@ -339,7 +273,7 @@ export default function UsersPage() {
           <div className="stat-value">{totalUsersCount}</div>
           <div className="stat-trend trend-up">
             <i className="fa fa-check-circle"></i>
-            <span>100% Verified Accounts</span>
+            <span>Administrator-provisioned accounts</span>
           </div>
           <div className="stat-description">
             Active portal users across all districts
@@ -771,7 +705,10 @@ export default function UsersPage() {
                     {/* 7. LAST LOGIN */}
                     <td style={{ padding: '12px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
                       <i className="fa fa-clock-o" style={{ marginRight: '5px', color: '#94A3B8' }}></i>
-                      {u.lastLogin || 'N/A'}
+                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
+                      {isLocked(u) && (
+                        <span style={{ marginLeft: '8px', color: '#DC2626', fontWeight: 700 }}>LOCKED</span>
+                      )}
                     </td>
 
                     {/* 8. ACTIONS BUTTONS */}
@@ -835,6 +772,27 @@ export default function UsersPage() {
                       >
                         <i className="fa fa-exchange"></i>
                       </button>
+
+                      {isLocked(u) && (
+                        <button
+                          type="button"
+                          onClick={() => handleUnlock(u)}
+                          title="Unlock account"
+                          style={{
+                            background: '#DCFCE7',
+                            border: '1px solid #BBF7D0',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            color: '#15803D',
+                            cursor: 'pointer',
+                            marginRight: '6px',
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <i className="fa fa-unlock"></i>
+                        </button>
+                      )}
 
                       {/* Delete */}
                       <button
@@ -932,6 +890,7 @@ export default function UsersPage() {
               >
                 <option value="FARMER">Farmer (Herd &amp; Tag Manager)</option>
                 <option value="VETERINARIAN">Veterinarian (DVM &amp; Officer)</option>
+                <option value="TESTER">Testing Officer (Laboratory)</option>
                 <option value="ADMIN">System Administrator (Level 1)</option>
               </select>
             </div>

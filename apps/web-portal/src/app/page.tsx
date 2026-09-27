@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { homePathFor } from '@/lib/access';
 
 export default function RootPage() {
   const { user, loading } = useAuth();
@@ -11,15 +12,7 @@ export default function RootPage() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        if (user.role === 'admin') {
-          router.push('/admin/dashboard');
-        } else if (user.role === 'veterinarian') {
-          router.push('/veterinarian/dashboard');
-        } else if (user.role === 'tester') {
-          router.push('/tester/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
+        router.push(homePathFor(user.role));
       } else {
         router.push('/login');
       }

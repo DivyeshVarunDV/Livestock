@@ -35,63 +35,10 @@ export default function AMUTracking() {
       if (apiAnimals.length > 0) {
         setFormData(prev => ({ ...prev, animalId: apiAnimals[0].id }));
       }
-    } catch {
-      const demoAnimals = [
-        { id: 'an-1', tagNumber: '#TAG-0042', name: 'Daisy', species: 'Cattle' },
-        { id: 'an-2', tagNumber: '#TAG-0018', name: 'Bella', species: 'Buffalo' },
-        { id: 'an-3', tagNumber: '#TAG-0091', name: 'Sheru', species: 'Goat' },
-        { id: 'an-4', tagNumber: '#TAG-0065', name: 'Shaun', species: 'Sheep' },
-        { id: 'an-5', tagNumber: '#TAG-0134', name: 'Ganga', species: 'Buffalo' },
-      ];
-      setAnimals(demoAnimals);
-      setTreatments([
-        {
-          id: 't-1',
-          animal: { tagNumber: '#TAG-0042', name: 'Daisy' },
-          drugName: 'Oxytetracycline 200mg/ml',
-          dosage: '15 ml IM',
-          administrationDate: new Date(Date.now() - 86400000 * 3).toISOString(),
-          withdrawalPeriod: 14,
-          withdrawalCompletionDate: new Date(Date.now() + 86400000 * 11).toISOString(),
-        },
-        {
-          id: 't-2',
-          animal: { tagNumber: '#TAG-0018', name: 'Bella' },
-          drugName: 'Amoxicillin LA Injection',
-          dosage: '20 ml IM',
-          administrationDate: new Date(Date.now() - 86400000 * 5).toISOString(),
-          withdrawalPeriod: 10,
-          withdrawalCompletionDate: new Date(Date.now() + 86400000 * 5).toISOString(),
-        },
-        {
-          id: 't-3',
-          animal: { tagNumber: '#TAG-0091', name: 'Sheru' },
-          drugName: 'Enrofloxacin Inj 10%',
-          dosage: '8 ml SC',
-          administrationDate: new Date(Date.now() - 86400000 * 2).toISOString(),
-          withdrawalPeriod: 10,
-          withdrawalCompletionDate: new Date(Date.now() + 86400000 * 8).toISOString(),
-        },
-        {
-          id: 't-4',
-          animal: { tagNumber: '#TAG-0065', name: 'Shaun' },
-          drugName: 'Meloxicam Vet',
-          dosage: '5 ml IM',
-          administrationDate: new Date(Date.now() - 86400000 * 12).toISOString(),
-          withdrawalPeriod: 7,
-          withdrawalCompletionDate: new Date(Date.now() - 86400000 * 5).toISOString(),
-        },
-        {
-          id: 't-5',
-          animal: { tagNumber: '#TAG-0134', name: 'Ganga' },
-          drugName: 'Tylosin Vet Injection',
-          dosage: '12 ml IM',
-          administrationDate: new Date(Date.now() - 86400000 * 4).toISOString(),
-          withdrawalPeriod: 14,
-          withdrawalCompletionDate: new Date(Date.now() + 86400000 * 10).toISOString(),
-        },
-      ]);
-      setFormData(prev => ({ ...prev, animalId: 'an-1' }));
+    } catch (err: any) {
+      setAnimals([]);
+      setTreatments([]);
+      alert(`Unable to load antimicrobial-use data: ${err?.message || 'server unavailable'}`);
     } finally {
       setLoading(false);
     }

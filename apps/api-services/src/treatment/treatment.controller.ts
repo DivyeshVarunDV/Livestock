@@ -1,59 +1,60 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Param,
-  Query,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Query, Body } from '@nestjs/common';
 import { TreatmentService } from './treatment.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CreateTreatmentDto } from './dto/create-treatment.dto';
+import { CreateMrlRuleDto, CreateTreatmentDto } from './dto/create-treatment.dto';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { Permission } from '../auth/permissions';
+import { CurrentUser } from '../common/actor';
+import type { Actor } from '../common/actor';
 
 @Controller('treatments')
-@UseGuards(JwtAuthGuard)
 export class TreatmentController {
   constructor(private treatmentService: TreatmentService) {}
 
   @Get()
+  @RequirePermissions(Permission.TREATMENT_READ)
   async findAll() {
     return this.treatmentService.findAll();
   }
 
   @Get('alerts')
+  @RequirePermissions(Permission.WITHDRAWAL_READ)
   async getActiveMrlAlerts() {
     return this.treatmentService.getActiveMrlAlerts();
   }
 
   @Get('rules')
+  @RequirePermissions(Permission.MRL_RULE_READ)
   async getMrlRules() {
     return this.treatmentService.getMrlRules();
   }
 
   @Post('update-statuses')
-  async updateStatuses() {
-    return this.treatmentService.updateAnimalMrlStatuses();
+  @RequirePermissions(Permission.MRL_STATUS_REFRESH)
+  async updateStatuses(@CurrentUser() actor: Actor) {
+    return this.treatmentService.updateAnimalMrlStatuses(actor);
   }
 
   @Post('rules')
-  async createMrlRule(@Body() dto: any) {
-    return this.treatmentService.createMrlRule(dto);
+  @RequirePermissions(Permission.MRL_RULE_WRITE)
+  async createMrlRule(@CurrentUser() actor: Actor, @Body() dto: CreateMrlRuleDto) {
+    return this.treatmentService.createMrlRule(actor, dto);
   }
 
   @Get('animal')
+  @RequirePermissions(Permission.TREATMENT_READ)
   async findByAnimal(@Query('animalId') animalId: string) {
     return this.treatmentService.findByAnimal(animalId);
   }
 
   @Post()
-  async create(@Body() dto: CreateTreatmentDto) {
-    return this.treatmentService.create(dto);
+  @RequirePermissions(Permission.TREATMENT_WRITE)
+  async create(@CurrentUser() actor: Actor, @Body() dto: CreateTreatmentDto) {
+    return this.treatmentService.create(actor, dto);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.treatmentService.remove(id);
+  @RequirePermissions(Permission.CLINICAL_RECORD_DELETE)
+  async remove(@CurrentUser() actor: Actor, @Param('id') id: string) {
+    return this.treatmentService.remove(actor, id);
   }
 }

@@ -192,13 +192,17 @@ export default function TransfersPage() {
   // Admin Reject Action
   const handleRejectTransfer = async () => {
     if (!reviewTransfer) return;
+    if (!rejectionReason.trim()) {
+      alert('Please record the reason for rejecting this transfer.');
+      return;
+    }
     setDecisionLoading(true);
     try {
       await apiFetch(`/ownership-transfers/${reviewTransfer.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           status: 'REJECTED',
-          rejectionReason: rejectionReason || 'Rejected by System Administrator',
+          rejectionReason: rejectionReason.trim(),
           userName: user?.name || 'System Administrator',
         }),
       });

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE_URL, getHeaders } from '@/lib/api';
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -9,6 +9,9 @@ export default function AuditPage() {
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [entityFilter, setEntityFilter] = useState('ALL');
   const [actionFilter, setActionFilter] = useState('ALL');
+  const [loadError, setLoadError] = useState('');
+  const [integrity, setIntegrity] = useState<any | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
 
 
@@ -20,77 +23,13 @@ export default function AuditPage() {
       if (entityFilter !== 'ALL') q.append('entity', entityFilter);
       if (actionFilter !== 'ALL') q.append('action', actionFilter);
 
+      setLoadError('');
       const data = await apiFetch(`/audit-logs?${q.toString()}`);
       setLogs(Array.isArray(data) ? data : []);
-    } catch {
-      // Enterprise default audit logs if offline/empty
-      setLogs([
-        {
-          id: 'aud-1',
-          userName: 'Dr. Sarah Jenkins',
-          userEmail: 'sarah.vet@agrishield.io',
-          role: 'VETERINARIAN',
-          action: 'CREATE',
-          entity: 'TREATMENT',
-          entityId: 'TRT-004',
-          oldValue: 'N/A',
-          newValue: 'Oxytetracycline 20ml (14d withdrawal)',
-          ipAddress: '192.168.1.45',
-          createdAt: new Date(Date.now() - 1800000).toISOString(),
-        },
-        {
-          id: 'aud-2',
-          userName: 'System Administrator',
-          userEmail: 'admin@agrishield.io',
-          role: 'ADMIN',
-          action: 'UPDATE',
-          entity: 'FARM',
-          entityId: 'FRM-001',
-          oldValue: 'Contact: +1-555-0199',
-          newValue: 'Contact: +1-555-8842',
-          ipAddress: '10.0.0.12',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-        {
-          id: 'aud-3',
-          userName: 'Robert Miller',
-          userEmail: 'robert.farmer@agrishield.io',
-          role: 'FARMER',
-          action: 'CREATE',
-          entity: 'ANIMAL',
-          entityId: 'TAG-089',
-          oldValue: 'N/A',
-          newValue: 'Registered Holstein Cattle (36 mo)',
-          ipAddress: '192.168.1.112',
-          createdAt: new Date(Date.now() - 7200000).toISOString(),
-        },
-        {
-          id: 'aud-4',
-          userName: 'Dr. Sarah Jenkins',
-          userEmail: 'sarah.vet@agrishield.io',
-          role: 'VETERINARIAN',
-          action: 'CREATE',
-          entity: 'VACCINATION',
-          entityId: 'VAC-112',
-          oldValue: 'N/A',
-          newValue: 'FMD Polyvalent Booster administered',
-          ipAddress: '192.168.1.45',
-          createdAt: new Date(Date.now() - 14400000).toISOString(),
-        },
-        {
-          id: 'aud-5',
-          userName: 'System Administrator',
-          userEmail: 'admin@agrishield.io',
-          role: 'ADMIN',
-          action: 'EXPORT',
-          entity: 'REPORT',
-          entityId: 'RPT-COMP-01',
-          oldValue: 'N/A',
-          newValue: 'Exported MRL Compliance PDF Report',
-          ipAddress: '10.0.0.12',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-        },
-      ]);
+    } catch (e: any) {
+      // Never substitute sample data for an official audit trail.
+      setLogs([]);
+      setLoadError(e?.message || 'Unable to load audit logs.');
     } finally {
       setLoading(false);
     }
@@ -100,58 +39,45 @@ export default function AuditPage() {
     loadAuditLogs();
   }, [roleFilter, entityFilter, actionFilter]);
 
-  const handleExportCSV = () => {
-    const headers = [
-      'Timestamp',
-      'User Name',
-      'User Email',
-      'Role',
-      'Action',
-      'Entity',
-      'Entity ID',
-      'Old Value',
-      'New Value',
-      'IP Address',
-    ];
-    const rows = logs.map((l) => [
-      l.createdAt,
-      l.userName,
-      l.userEmail,
-      l.role,
-      l.action,
-      l.entity,
-      l.entityId || '',
-      l.oldValue || '',
-      l.newValue || '',
-      l.ipAddress || '',
-    ]);
+  const handleExportCSV = async () => {
+    const q = new URLSearchParams();
+    if (roleFilter !== 'ALL') q.append('role', roleFilter);
+    if (entityFilter !== 'ALL') q.append('entity', entityFilter);
+    if (actionFilter !== 'ALL') q.append('action', actionFilter);
+    try {
+      const res = await fetch(`${API_BASE_URL}/audit-logs/export?${q.toString()}`, { headers: getHeaders() });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `livestocare_audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e?.message || 'Export failed');
+    }
+  };
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.map((cell) => `"${cell}"`).join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `agrishield_audit_log_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleVerify = async () => {
+    setVerifying(true);
+    try {
+      setIntegrity(await apiFetch('/audit-logs/verify'));
+    } catch (e: any) {
+      setIntegrity({ valid: false, reason: e?.message || 'Verification failed' });
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const getActionBadge = (act: string) => {
-    switch (act) {
-      case 'CREATE':
-        return { label: 'CREATE', color: '#059669', bg: '#d1fae5' };
-      case 'UPDATE':
-        return { label: 'UPDATE', color: '#0284c7', bg: '#e0f2fe' };
-      case 'DELETE':
-        return { label: 'DELETE', color: '#dc2626', bg: '#fee2e2' };
-      case 'EXPORT':
-        return { label: 'EXPORT', color: '#9333ea', bg: '#f3e8ff' };
-      default:
-        return { label: act, color: '#475569', bg: '#f1f5f9' };
-    }
+    const a = act || '';
+    if (/(DELETED|FAILED|LOCKED|BLOCKED|REJECTED|CANCELLED)/.test(a)) return { label: a, color: '#dc2626', bg: '#fee2e2' };
+    if (/(CREATED|ADDED|REGISTERED|RECORDED|REPORTED|DISPENSED|COLLECTED|APPROVED|LOGIN$)/.test(a)) return { label: a, color: '#059669', bg: '#d1fae5' };
+    if (/(UPDATED|CHANGED|ADJUSTED|EDITED|AMENDED|RESET|UNLOCKED|RESOLVED|DISMISSED|REOPENED)/.test(a)) return { label: a, color: '#0284c7', bg: '#e0f2fe' };
+    return { label: a, color: '#475569', bg: '#f1f5f9' };
   };
 
   return (
@@ -175,6 +101,15 @@ export default function AuditPage() {
           </button>
           <button
             type="button"
+            onClick={handleVerify}
+            disabled={verifying}
+            className="btn-secondary"
+          >
+            <i className="fa fa-shield" style={{ marginRight: '6px' }}></i>
+            {verifying ? 'Verifying…' : 'Verify Integrity'}
+          </button>
+          <button
+            type="button"
             onClick={handleExportCSV}
             className="btn-primary"
           >
@@ -183,6 +118,27 @@ export default function AuditPage() {
           </button>
         </div>
       </div>
+
+      {integrity && (
+        <div
+          role="status"
+          style={{
+            padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem',
+            background: integrity.valid ? '#ecfdf5' : '#fef2f2',
+            color: integrity.valid ? '#065f46' : '#991b1b',
+            border: `1px solid ${integrity.valid ? '#a7f3d0' : '#fecaca'}`,
+          }}
+        >
+          {integrity.valid
+            ? `Audit chain verified: ${integrity.checked} entries intact (head ${String(integrity.headHash || '').slice(0, 16)}…).`
+            : `INTEGRITY FAILURE${integrity.brokenAtSequence ? ` at entry #${integrity.brokenAtSequence}` : ''}: ${integrity.reason}`}
+        </div>
+      )}
+      {loadError && (
+        <div role="alert" style={{ padding: '12px 16px', borderRadius: '8px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' }}>
+          {loadError}
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -201,7 +157,10 @@ export default function AuditPage() {
             <option value="ALL">All Roles</option>
             <option value="ADMIN">Administrator</option>
             <option value="VETERINARIAN">Veterinarian</option>
+            <option value="TESTER">Testing Officer</option>
             <option value="FARMER">Farmer</option>
+            <option value="SYSTEM">System</option>
+            <option value="ANONYMOUS">Anonymous</option>
           </select>
         </div>
 
@@ -224,7 +183,17 @@ export default function AuditPage() {
             <option value="VACCINATION">Vaccination</option>
             <option value="INVENTORY">Inventory</option>
             <option value="USER">User</option>
-            <option value="REPORT">Report</option>
+            <option value="AUTH">Sign-in / Sessions</option>
+            <option value="PRESCRIPTION">Prescription</option>
+            <option value="HEALTH_RECORD">Health Record</option>
+            <option value="AMU_RECORD">AMU Record</option>
+            <option value="MEDICINE_DISPENSING">Dispensing</option>
+            <option value="MRL_RULE">MRL Rule</option>
+            <option value="OWNERSHIP_TRANSFER">Ownership Transfer</option>
+            <option value="MILK_COLLECTION">Collection</option>
+            <option value="COLLECTION_BATCH">Batch</option>
+            <option value="PRODUCT_TEST">Lab Result</option>
+            <option value="VIOLATION">Violation</option>
           </select>
         </div>
 
@@ -241,10 +210,21 @@ export default function AuditPage() {
             }}
           >
             <option value="ALL">All Actions</option>
-            <option value="CREATE">CREATE</option>
-            <option value="UPDATE">UPDATE</option>
-            <option value="DELETE">DELETE</option>
-            <option value="EXPORT">EXPORT</option>
+            <option value="LOGIN">Sign-in</option>
+            <option value="LOGIN_FAILED">Failed sign-in</option>
+            <option value="ACCOUNT_LOCKED">Account locked</option>
+            <option value="USER_ROLE_CHANGED">Role changed</option>
+            <option value="USER_PASSWORD_RESET">Password reset</option>
+            <option value="TREATMENT_CREATED">Treatment recorded</option>
+            <option value="PRESCRIPTION_CREATED">Prescription issued</option>
+            <option value="MRL_STATUS_CHANGED">MRL status changed</option>
+            <option value="WITHDRAWAL_CLEARED">Withdrawal cleared</option>
+            <option value="RESTRICTED_SUPPLY_BLOCKED">Restricted supply blocked</option>
+            <option value="LAB_RESULT_RECORDED">Lab result recorded</option>
+            <option value="BATCH_STATUS_CHANGED">Batch status changed</option>
+            <option value="OWNERSHIP_TRANSFER_APPROVED">Transfer approved</option>
+            <option value="VIOLATION_RESOLVED">Case resolved</option>
+            <option value="VIOLATION_DISMISSED">Case dismissed</option>
           </select>
         </div>
       </div>

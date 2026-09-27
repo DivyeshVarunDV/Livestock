@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { homePathFor } from '@/lib/access';
 import { 
   Shield, Globe, User, Mail, Lock, Eye, EyeOff, LogIn, CheckCircle2, Stethoscope, Home, ShieldCheck, ChevronDown
 } from 'lucide-react';
@@ -20,9 +21,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.role === 'admin') router.push('/admin/dashboard');
-      else if (user.role === 'veterinarian') router.push('/veterinarian/dashboard');
-      else if (user.role === 'tester') router.push('/tester/dashboard');
+      router.push(user.mustChangePassword ? '/profile?changePassword=1' : homePathFor(user.role));
     }
   }, [user, router]);
 

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { homePathFor } from '@/lib/access';
 import {
   LayoutDashboard, PawPrint, Tractor, Syringe, Clock, BarChart3,
   Bell, LogOut, User, Settings, Users, ClipboardList, Menu, X, ChevronDown,
@@ -21,13 +22,8 @@ export default function TopNavbar() {
   const isVet = user?.role === 'veterinarian';
   const isTester = user?.role === 'tester';
 
-  const homePath = isAdmin
-    ? '/admin/dashboard'
-    : isVet
-      ? '/veterinarian/dashboard'
-      : isTester
-        ? '/tester/dashboard'
-        : '/dashboard';
+  const isFarmer = user?.role === 'farmer';
+  const homePath = homePathFor(user?.role);
 
   const vetNavItems = [
     { name: 'Dashboard', href: '/veterinarian/dashboard', icon: LayoutDashboard },
@@ -58,11 +54,17 @@ export default function TopNavbar() {
     { name: 'MRL', href: '/mrl', icon: Shield },
     { name: 'Investigations', href: '/admin/investigations', icon: ShieldAlert },
     { name: 'Transfers', href: '/transfers', icon: ArrowRightLeft },
+    { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
     { name: 'Audit Log', href: '/audit', icon: ClipboardList },
   ];
 
-  const mainNavItems = isVet ? vetNavItems : isTester ? testerNavItems : adminNavItems;
+  const farmerNavItems = [
+    { name: 'My Farms', href: '/farms', icon: Tractor },
+    { name: 'My Animals', href: '/animals', icon: PawPrint },
+  ];
+
+  const mainNavItems = isVet ? vetNavItems : isTester ? testerNavItems : isFarmer ? farmerNavItems : isAdmin ? adminNavItems : [];
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -80,13 +82,7 @@ export default function TopNavbar() {
   }, [pathname]);
 
   function isActive(href: string) {
-    if (
-      href === homePath ||
-      href === '/dashboard' ||
-      href === '/admin/dashboard' ||
-      href === '/veterinarian/dashboard' ||
-      href === '/tester/dashboard'
-    ) {
+    if (href.endsWith('/dashboard')) {
       return pathname === '/dashboard' || pathname === '/admin/dashboard' || pathname === '/veterinarian/dashboard' || pathname === '/tester/dashboard';
     }
     return pathname.startsWith(href);
@@ -156,7 +152,7 @@ export default function TopNavbar() {
                   <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 animate-fade-in-up">
                     <div className="px-3.5 py-2.5 border-b border-gray-100">
                       <div className="text-sm font-semibold text-gray-900">{user?.name}</div>
-                      <div className="text-xs text-gray-500">{user?.email || `${user?.role}@agrishield.io`}</div>
+                      <div className="text-xs text-gray-500">{user?.email}</div>
                     </div>
                     <div className="py-1">
                       <Link

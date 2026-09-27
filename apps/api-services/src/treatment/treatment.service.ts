@@ -1,12 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Inventory, Prescription } from '@livestock/database';
 import { PrismaService } from '../prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { AuditService } from '../audit/audit.service';
+import { ComplianceService } from '../compliance/compliance.service';
+import { NotificationService } from '../notification/notification.service';
+import { Actor, SYSTEM_ACTOR } from '../common/actor';
+import { generateCode } from '../common/codes';
+import { CreateMrlRuleDto, CreateTreatmentDto } from './dto/create-treatment.dto';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FUTURE_TOLERANCE_MS = 10 * 60 * 1000;
+
+/** Default products restricted by a treatment when the vet does not specify them. */
+export function defaultProductTypes(species: string, gender: string): string[] {
+  if ((species || '').toUpperCase() === 'POULTRY') return ['MEAT', 'EGGS'];
+  return (gender || '').toUpperCase() === 'MALE' ? ['MEAT'] : ['MILK', 'MEAT'];
+}
+
+/** Rule matches the exact drug name, or a drug name that starts with it (e.g. "Oxytetracycline 200mg/ml"). */
+export function ruleMatchesDrug(ruleDrug: string, drugName: string, activeIngredient?: string | null) {
+  const rule = ruleDrug.trim().toLowerCase();
+  const candidates = [drugName, activeIngredient].filter(Boolean).map((s) => String(s).trim().toLowerCase());
+  return candidates.some((c) => c === rule || c.startsWith(`${rule} `));
+}
 
 @Injectable()
 export class TreatmentService {
   constructor(
     private prisma: PrismaService,
-    private ledgerService: LedgerService
+    private ledgerService: LedgerService,
+    private audit: AuditService,
+    private compliance: ComplianceService,
+    private notifications: NotificationService,
   ) {}
 
   async findAll() {
@@ -48,291 +74,228 @@ export class TreatmentService {
     });
   }
 
-  async create(dto: any) {
-    const adminDate = dto.administrationDate
-      ? new Date(dto.administrationDate)
-      : new Date();
+  /** The legally applicable minimum withdrawal period for a drug/species, if a rule exists. */
+  async findApplicableRule(drugName: string, species: string, activeIngredient?: string | null) {
+    const rules = await this.prisma.mrlRule.findMany({ where: { species: species.toUpperCase(), status: 'ACTIVE' } });
+    const matching = rules.filter((r) => ruleMatchesDrug(r.drugName, drugName, activeIngredient));
+    if (matching.length === 0) return null;
+    return matching.reduce((a, b) => (b.withdrawalPeriod > a.withdrawalPeriod ? b : a));
+  }
+
+  async create(actor: Actor, dto: CreateTreatmentDto) {
+    const now = new Date();
+    const adminDate = dto.administrationDate ? new Date(dto.administrationDate) : now;
+    if (adminDate.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) {
+      throw new BadRequestException('Administration date cannot be in the future.');
+    }
 
     const animal = await this.prisma.animal.findUnique({ where: { id: dto.animalId } });
     if (!animal) {
       throw new NotFoundException('Animal not found');
     }
+    if (animal.currentStatus && animal.currentStatus !== 'ACTIVE') {
+      throw new BadRequestException(`Cannot record a treatment for an animal with status ${animal.currentStatus}.`);
+    }
 
-    let withdrawalPeriod = Number(dto.withdrawalPeriod || 0);
-    if (!withdrawalPeriod && dto.drugName && animal.species) {
-      const rule = await this.prisma.mrlRule.findFirst({
-        where: {
+    // Prescription must be valid for this animal at the time of administration.
+    let prescription: Prescription | null = null;
+    if (dto.prescriptionId) {
+      prescription = await this.prisma.prescription.findUnique({ where: { id: dto.prescriptionId } });
+      if (!prescription) throw new BadRequestException('Linked prescription does not exist');
+      if (prescription.animalId !== animal.id) throw new BadRequestException('Prescription was issued for a different animal');
+      if (prescription.status !== 'ACTIVE') throw new BadRequestException(`Prescription is ${prescription.status}`);
+      if (prescription.endDate && prescription.endDate.getTime() + DAY_MS < adminDate.getTime()) {
+        throw new BadRequestException('Prescription validity period has ended');
+      }
+    }
+
+    // Stock item must be in date.
+    let inventory: Inventory | null = null;
+    if (dto.inventoryId) {
+      inventory = await this.prisma.inventory.findUnique({ where: { id: dto.inventoryId } });
+      if (!inventory) throw new BadRequestException('Selected inventory item does not exist');
+      if (inventory.expiryDate < adminDate) {
+        throw new BadRequestException(`Batch ${inventory.batchNumber} of ${inventory.medicineName} expired on ${inventory.expiryDate.toISOString().slice(0, 10)} and must not be administered.`);
+      }
+    }
+
+    // Withdrawal period: the largest of the vet's value, the prescription, the stock item and the MRL rule.
+    const complianceNotes: string[] = [];
+    const rule = await this.findApplicableRule(dto.drugName, animal.species, dto.activeIngredient ?? prescription?.activeIngredient);
+    const requested = dto.withdrawalPeriod ?? 0;
+    const floors: { source: string; days: number }[] = [
+      { source: 'requested', days: requested },
+      { source: `MRL rule (${rule?.drugName}/${rule?.species})`, days: rule?.withdrawalPeriod ?? 0 },
+      { source: 'prescription', days: prescription?.applicableWithdrawalPeriod ?? 0 },
+      { source: `stock item ${inventory?.batchNumber}`, days: inventory?.withdrawalPeriod ?? 0 },
+    ];
+    const governing = floors.reduce((a, b) => (b.days > a.days ? b : a));
+    const withdrawalPeriod = governing.days;
+    if (withdrawalPeriod > requested) {
+      complianceNotes.push(
+        `Withdrawal period raised from ${requested} to ${withdrawalPeriod} day(s) to meet the ${governing.source} minimum.`,
+      );
+    }
+    const withdrawalCompletionDate = new Date(adminDate.getTime() + withdrawalPeriod * DAY_MS);
+
+    const productTypes = [
+      ...new Set(
+        dto.productTypes && dto.productTypes.length > 0
+          ? dto.productTypes
+          : dto.productType
+            ? [dto.productType]
+            : defaultProductTypes(animal.species, animal.gender),
+      ),
+    ];
+    const recordAmu = Boolean(dto.isAntimicrobial || dto.recordAmu);
+    const startDate = dto.treatmentStartDate ? new Date(dto.treatmentStartDate) : adminDate;
+    const endDate = dto.treatmentEndDate ? new Date(dto.treatmentEndDate) : null;
+    if (endDate && endDate < startDate) throw new BadRequestException('Treatment end date is before its start date');
+
+    const { treatment, remainingStock } = await this.prisma.$transaction(async (tx) => {
+      let remaining: number | null = null;
+      if (inventory) {
+        // Atomic decrement: never goes below zero even under concurrent requests.
+        const dec = await tx.inventory.updateMany({
+          where: { id: inventory.id, stock: { gte: 1 } },
+          data: { stock: { decrement: 1 } },
+        });
+        if (dec.count === 0) throw new ConflictException(`${inventory.medicineName} (batch ${inventory.batchNumber}) is out of stock.`);
+        remaining = (await tx.inventory.findUnique({ where: { id: inventory.id } }))!.stock;
+      }
+
+      const created = await tx.treatment.create({
+        data: {
+          animalId: animal.id,
+          prescriptionId: prescription?.id ?? null,
+          disease: dto.disease || null,
           drugName: dto.drugName,
-          species: animal.species,
+          activeIngredient: dto.activeIngredient || prescription?.activeIngredient || null,
+          dosage: dto.dosage,
+          route: dto.route || null,
+          reason: dto.reason || null,
+          notes: dto.notes || null,
+          followUpRequired: Boolean(dto.followUpRequired),
+          treatmentStartDate: startDate,
+          treatmentEndDate: endDate,
+          administrationDate: adminDate,
+          withdrawalPeriod,
+          withdrawalCompletionDate,
+          veterinarianId: actor.id,
+          veterinarianName: actor.name,
         },
       });
-      if (rule) {
-        withdrawalPeriod = rule.withdrawalPeriod;
-      }
-    }
 
-    const withdrawalCompletionDate = new Date(adminDate);
-    withdrawalCompletionDate.setDate(
-      withdrawalCompletionDate.getDate() + withdrawalPeriod,
-    );
-
-    if (dto.inventoryId) {
-      const inventory = await this.prisma.inventory.findUnique({
-        where: { id: dto.inventoryId },
-      });
-      if (inventory && inventory.stock > 0) {
-        const newStock = inventory.stock - 1;
-        await this.prisma.inventory.update({
-          where: { id: dto.inventoryId },
-          data: { stock: newStock },
+      for (const productType of productTypes) {
+        await tx.withdrawalRecord.create({
+          data: {
+            withdrawalCode: dto.withdrawalCode || generateCode('WD'),
+            treatmentId: created.id,
+            animalId: animal.id,
+            productType,
+            medicine: dto.drugName,
+            treatmentDate: adminDate,
+            withdrawalPeriod,
+            withdrawalEndDate: withdrawalCompletionDate,
+            status: withdrawalCompletionDate > now ? 'RESTRICTED' : 'WITHDRAWAL_COMPLETED',
+            followUpRequired: Boolean(dto.followUpRequired),
+            notes: dto.notes || null,
+          },
         });
-        if (newStock <= inventory.minimumStock) {
-          await this.prisma.notification.create({
-            data: {
-              title: 'Low Stock Alert',
-              message: `Low stock alert: ${inventory.medicineName} is running low (${newStock} remaining)`,
-              type: 'WARNING',
-            },
-          });
-        }
-      } else {
-        console.warn(`Warning: Inventory item ${dto.inventoryId} not found or out of stock.`);
       }
-    }
 
-    const treatment = await this.prisma.treatment.create({
-      data: {
-        animalId: dto.animalId,
-        prescriptionId: dto.prescriptionId || null,
-        disease: dto.disease || null,
-        drugName: dto.drugName,
-        activeIngredient: dto.activeIngredient || null,
+      if (recordAmu) {
+        await tx.amuRecord.create({
+          data: {
+            amuCode: dto.amuCode || generateCode('AMU'),
+            animalId: animal.id,
+            treatmentId: created.id,
+            medicine: dto.drugName,
+            activeIngredient: dto.activeIngredient || prescription?.activeIngredient || null,
+            dosage: dto.dosage,
+            route: dto.route || null,
+            startDate,
+            endDate,
+            reason: dto.reason || null,
+            veterinarianId: actor.id,
+            veterinarianName: actor.name,
+          },
+        });
+      }
+      return { treatment: created, remainingStock: remaining };
+    });
+
+    // Derived state (withdrawal statuses, product clearances, MRL status) from the authoritative records.
+    await this.compliance.recomputeAnimal(animal.id, actor);
+
+    await this.audit.record(actor, {
+      action: 'TREATMENT_CREATED',
+      entity: 'TREATMENT',
+      entityId: treatment.id,
+      newValue: {
+        animalId: animal.id,
+        drug: dto.drugName,
         dosage: dto.dosage,
-        route: dto.route || null,
-        reason: dto.reason || null,
-        notes: dto.notes || null,
-        followUpRequired: Boolean(dto.followUpRequired),
-        treatmentStartDate: dto.treatmentStartDate ? new Date(dto.treatmentStartDate) : adminDate,
-        treatmentEndDate: dto.treatmentEndDate ? new Date(dto.treatmentEndDate) : null,
-        administrationDate: adminDate,
+        productTypes,
         withdrawalPeriod,
-        withdrawalCompletionDate,
-        veterinarianId: dto.veterinarianId || null,
-        veterinarianName: dto.veterinarianName || 'System Vet',
+        withdrawalEnds: withdrawalCompletionDate.toISOString(),
+        prescriptionId: prescription?.id ?? null,
+        inventoryId: inventory?.id ?? null,
+        amuRecorded: recordAmu,
+        complianceNotes,
       },
     });
 
-    const withdrawalProducts = Array.isArray(dto.productTypes) && dto.productTypes.length > 0
-      ? dto.productTypes
-      : [dto.productType || 'MILK'];
-
-    for (const productType of withdrawalProducts) {
-      await this.prisma.withdrawalRecord.create({
-        data: {
-          withdrawalCode: dto.withdrawalCode || null,
-          treatmentId: treatment.id,
-          animalId: dto.animalId,
-          productType,
-          medicine: dto.drugName,
-          treatmentDate: adminDate,
-          withdrawalPeriod,
-          withdrawalEndDate: withdrawalCompletionDate,
-          status: withdrawalPeriod > 0 ? 'RESTRICTED' : 'WITHDRAWAL_COMPLETED',
-          followUpRequired: Boolean(dto.followUpRequired),
-          notes: dto.notes || null,
-        },
-      });
-    }
-
-    // Update product clearance for each product type
-    for (const productType of withdrawalProducts) {
-      const existing = await this.prisma.productClearance.findFirst({
-        where: { animalId: dto.animalId, productType },
-      });
-      const clearanceData = {
-        status: withdrawalPeriod > 0 ? 'RESTRICTED' : 'CLEARED',
-        reason: withdrawalPeriod > 0 ? `Treatment: ${dto.drugName}` : null,
-        restrictionStart: withdrawalPeriod > 0 ? adminDate : null,
-        restrictionEnd: withdrawalPeriod > 0 ? withdrawalCompletionDate : null,
-      };
-      if (existing) {
-        await this.prisma.productClearance.update({
-          where: { id: existing.id },
-          data: clearanceData,
-        });
-      } else {
-        await this.prisma.productClearance.create({
-          data: { animalId: dto.animalId, productType, ...clearanceData },
-        });
-      }
-    }
-
-    if (dto.isAntimicrobial || dto.recordAmu) {
-      await this.prisma.amuRecord.create({
-        data: {
-          amuCode: dto.amuCode || null,
-          animalId: dto.animalId,
-          treatmentId: treatment.id,
-          medicine: dto.drugName,
-          activeIngredient: dto.activeIngredient || null,
-          dosage: dto.dosage,
-          route: dto.route || null,
-          startDate: dto.treatmentStartDate ? new Date(dto.treatmentStartDate) : adminDate,
-          endDate: dto.treatmentEndDate ? new Date(dto.treatmentEndDate) : null,
-          reason: dto.reason || null,
-          veterinarianId: dto.veterinarianId || null,
-          veterinarianName: dto.veterinarianName || 'System Vet',
-        },
-      });
-    }
-
-    await this.updateAnimalMrlStatus(dto.animalId, dto.veterinarianName);
-
-    await this.prisma.auditLog.create({
-      data: {
-        userName: dto.veterinarianName || 'System Auto',
-        role: 'VETERINARIAN',
-        action: 'Treatment Created',
-        entity: 'TREATMENT',
-        entityId: treatment.id,
-        newValue: JSON.stringify({ drug: dto.drugName, dosage: dto.dosage, productTypes: withdrawalProducts })
-      }
-    });
-
-    if (withdrawalPeriod > 0) {
-      await this.prisma.auditLog.create({
-        data: {
-          userName: dto.veterinarianName || 'System Auto',
-          role: 'VETERINARIAN',
-          action: 'Withdrawal Started',
-          entity: 'TREATMENT',
-          entityId: treatment.id,
-          newValue: JSON.stringify({ drug: dto.drugName, duration: `${withdrawalPeriod} days`, productTypes: withdrawalProducts })
-        }
+    if (inventory && remainingStock !== null && remainingStock <= inventory.minimumStock) {
+      await this.notifications.notify({
+        title: 'Low Stock Alert',
+        message: `${inventory.medicineName} (batch ${inventory.batchNumber}) is running low: ${remainingStock} remaining.`,
+        type: 'WARNING',
+        entityId: inventory.id,
+        roles: ['ADMIN', 'VETERINARIAN'],
       });
     }
 
     await this.ledgerService.appendToLedger('CREATE_TREATMENT', treatment.id, treatment);
 
-    return treatment;
+    return { ...treatment, productTypes, complianceNotes };
   }
 
-  async remove(id: string) {
-    const treatment = await this.prisma.treatment.findUnique({ where: { id } });
+  async remove(actor: Actor, id: string) {
+    const treatment = await this.prisma.treatment.findUnique({
+      where: { id },
+      include: { withdrawalRecords: true, amuRecords: true },
+    });
     if (!treatment) throw new NotFoundException('Treatment not found');
 
-    await this.prisma.withdrawalRecord.deleteMany({ where: { treatmentId: id } });
-    await this.prisma.amuRecord.deleteMany({ where: { treatmentId: id } });
-    await this.prisma.treatment.delete({ where: { id } });
-    await this.updateAnimalMrlStatus(treatment.animalId, 'System Auto');
+    const withdrawalIds = treatment.withdrawalRecords.map((w) => w.id);
+    await this.prisma.$transaction([
+      this.prisma.productClearance.updateMany({
+        where: { relatedWithdrawalId: { in: withdrawalIds } },
+        data: { relatedWithdrawalId: null },
+      }),
+      this.prisma.withdrawalRecord.deleteMany({ where: { treatmentId: id } }),
+      this.prisma.amuRecord.deleteMany({ where: { treatmentId: id } }),
+      this.prisma.treatment.delete({ where: { id } }),
+    ]);
+    await this.compliance.recomputeAnimal(treatment.animalId, actor);
+    await this.audit.record(actor, { action: 'TREATMENT_DELETED', entity: 'TREATMENT', entityId: id, oldValue: treatment });
+    await this.ledgerService.appendToLedger('DELETE_TREATMENT', id, { deletedBy: actor.id, treatment });
     return { success: true };
   }
 
-  async updateAnimalMrlStatus(animalId: string, userName: string = 'System Auto') {
-    const now = new Date();
-    const animal = await this.prisma.animal.findUnique({ where: { id: animalId } });
-    if (!animal) return;
-
-    const previousMrlStatus = animal.mrlStatus;
-
-    const withdrawals = await this.prisma.withdrawalRecord.findMany({
-      where: { animalId },
-      orderBy: { withdrawalEndDate: 'desc' },
-    });
-
-    if (withdrawals.length === 0) {
-      await this.prisma.animal.update({
-        where: { id: animalId },
-        data: { mrlStatus: 'CLEARED', status: 'HEALTHY' },
-      });
-      if (previousMrlStatus !== 'CLEARED') {
-        await this.prisma.auditLog.create({
-          data: {
-            userName,
-            action: 'Withdrawal Cleared',
-            entity: 'ANIMAL',
-            entityId: animalId,
-            oldValue: previousMrlStatus,
-            newValue: 'CLEARED'
-          }
-        });
-      }
-      return;
-    }
-
-    let latestCompletion = new Date(0);
-    for (const record of withdrawals) {
-      const compDate = new Date(record.withdrawalEndDate);
-      if (compDate > latestCompletion) {
-        latestCompletion = compDate;
-      }
-      const nextStatus = compDate > now ? 'RESTRICTED' : 'WITHDRAWAL_COMPLETED';
-      if (record.status !== nextStatus) {
-        await this.prisma.withdrawalRecord.update({
-          where: { id: record.id },
-          data: { status: nextStatus },
-        });
-      }
-    }
-
-    let mrlStatus = 'CLEARED';
-    let animalStatus = 'HEALTHY';
-
-    if (latestCompletion > now) {
-      animalStatus = 'UNDER_TREATMENT';
-      const diffMs = latestCompletion.getTime() - now.getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      if (diffDays <= 3) {
-        mrlStatus = 'CLEARING_SOON';
-      } else {
-        mrlStatus = 'DO_NOT_SELL';
-      }
-    }
-
-    await this.prisma.animal.update({
-      where: { id: animalId },
-      data: { mrlStatus, status: animalStatus },
-    });
-
-    if (previousMrlStatus !== mrlStatus) {
-      if (mrlStatus === 'CLEARED') {
-        await this.prisma.auditLog.create({
-          data: {
-            userName,
-            action: 'Withdrawal Cleared',
-            entity: 'ANIMAL',
-            entityId: animalId,
-            oldValue: previousMrlStatus,
-            newValue: mrlStatus
-          }
-        });
-      } else {
-        await this.prisma.auditLog.create({
-          data: {
-            userName,
-            action: 'MRL Status Changed',
-            entity: 'ANIMAL',
-            entityId: animalId,
-            oldValue: previousMrlStatus,
-            newValue: mrlStatus
-          }
-        });
-      }
-    }
+  /** Backward-compatible wrapper around the compliance engine. */
+  async updateAnimalMrlStatus(animalId: string, actor: Actor = SYSTEM_ACTOR) {
+    return this.compliance.recomputeAnimal(animalId, actor);
   }
 
-  async updateAnimalMrlStatuses() {
-    const animals = await this.prisma.animal.findMany({
-      where: { mrlStatus: { not: 'CLEARED' } },
-    });
-
-    for (const animal of animals) {
-      await this.updateAnimalMrlStatus(animal.id);
-    }
+  async updateAnimalMrlStatuses(actor: Actor = SYSTEM_ACTOR) {
+    const processed = await this.compliance.sweep(actor);
+    return { processed };
   }
 
   async getActiveMrlAlerts() {
-    await this.updateAnimalMrlStatuses();
+    await this.compliance.sweep();
     return this.prisma.animal.findMany({
       where: {
         mrlStatus: {
@@ -356,27 +319,34 @@ export class TreatmentService {
   }
 
   async getMrlRules() {
-    return this.prisma.mrlRule.findMany();
+    return this.prisma.mrlRule.findMany({ orderBy: [{ species: 'asc' }, { drugName: 'asc' }] });
   }
 
-  async createMrlRule(dto: any) {
-    return this.prisma.mrlRule.upsert({
-      where: {
-        drugName_species: {
-          drugName: dto.drugName,
-          species: dto.species,
-        },
-      },
-      update: {
-        withdrawalPeriod: Number(dto.withdrawalPeriod),
-        mrlLimit: dto.mrlLimit,
-      },
-      create: {
-        drugName: dto.drugName,
-        species: dto.species,
-        withdrawalPeriod: Number(dto.withdrawalPeriod),
-        mrlLimit: dto.mrlLimit,
-      },
+  async createMrlRule(actor: Actor, dto: CreateMrlRuleDto) {
+    const where = { drugName_species: { drugName: dto.drugName, species: dto.species } };
+    const existing = await this.prisma.mrlRule.findUnique({ where });
+    const fields = {
+      withdrawalPeriod: dto.withdrawalPeriod,
+      mrlLimit: dto.mrlLimit ?? existing?.mrlLimit ?? null,
+      substance: dto.substance ?? existing?.substance ?? null,
+      applicableTissue: dto.applicableTissue ?? existing?.applicableTissue ?? null,
+      unit: dto.unit ?? existing?.unit ?? null,
+      reference: dto.reference ?? existing?.reference ?? null,
+      effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : existing?.effectiveDate ?? null,
+      status: 'ACTIVE',
+    };
+    const rule = await this.prisma.mrlRule.upsert({
+      where,
+      update: fields,
+      create: { drugName: dto.drugName, species: dto.species, ...fields },
     });
+    await this.audit.record(actor, {
+      action: existing ? 'MRL_RULE_UPDATED' : 'MRL_RULE_CREATED',
+      entity: 'MRL_RULE',
+      entityId: rule.id,
+      oldValue: existing,
+      newValue: rule,
+    });
+    return rule;
   }
 }

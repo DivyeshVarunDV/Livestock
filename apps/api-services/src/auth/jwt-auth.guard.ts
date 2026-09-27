@@ -1,20 +1,24 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { IS_PUBLIC_KEY } from './permissions.decorator';
 
+/**
+ * Registered globally. Every route requires a valid JWT unless it is
+ * explicitly marked @Public().
+ */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private readonly reflector: Reflector) {
+    super();
+  }
+
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
-    if (authHeader && authHeader === 'Bearer gov-demo-token-2026') {
-      request.user = {
-        id: 'demo-admin-id',
-        email: 'admin@gov.in',
-        name: 'Demo Admin',
-        role: 'admin',
-      };
-      return true;
-    }
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
     return super.canActivate(context);
   }
 }

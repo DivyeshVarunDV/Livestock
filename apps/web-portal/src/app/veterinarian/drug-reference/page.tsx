@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { Search, Pill, Plus, Filter } from 'lucide-react';
 import Modal from '@/components/Modal';
 
 export default function DrugReferencePage() {
+  const { can } = useAuth();
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -84,13 +86,15 @@ export default function DrugReferencePage() {
             </h1>
             <p className="text-gray-500 mt-1 text-sm">Look up withdrawal periods and MRL limits for veterinary drugs.</p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            <Plus size={18} />
-            Add Rule
-          </button>
+          {can('mrl-rule:write') && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              <Plus size={18} />
+              Add Rule
+            </button>
+          )}
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row gap-3">

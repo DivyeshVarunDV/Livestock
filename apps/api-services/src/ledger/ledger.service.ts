@@ -1,19 +1,23 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as crypto from 'crypto';
-import { createFabricConnection, FABRIC_CHANNEL_NAME, FABRIC_CHAINCODE_NAME } from './fabric.config';
 
 @Injectable()
 export class LedgerService implements OnModuleInit {
   private readonly logger = new Logger(LedgerService.name);
   private fabricContract: any = null;
   private fabricGateway: any = null;
+  // Serialises local appends so two concurrent writes cannot fork the hash chain.
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
+    if (process.env.NODE_ENV === 'test' || process.env.FABRIC_ENABLED === 'false') return;
     try {
       this.logger.log('Attempting to connect to Hyperledger Fabric test-network...');
+      // Loaded lazily: the Fabric SDK is optional and heavy.
+      const { createFabricConnection, FABRIC_CHANNEL_NAME, FABRIC_CHAINCODE_NAME } = await import('./fabric.config.js');
       this.fabricGateway = await createFabricConnection();
       const network = this.fabricGateway.getNetwork(FABRIC_CHANNEL_NAME);
       this.fabricContract = network.getContract(FABRIC_CHAINCODE_NAME);
@@ -41,7 +45,16 @@ export class LedgerService implements OnModuleInit {
       }
     }
 
-    // 2. Fallback to SQLite Mock Ledger
+    // 2. Fallback to the local hash-chained ledger
+    const run = this.queue.then(() => this.appendLocal(action, recordId, payloadStr, timestamp));
+    this.queue = run.catch(() => undefined);
+    return run.catch((err) => {
+      this.logger.error(`Ledger append failed for ${action} ${recordId}: ${(err as Error).message}`);
+      return { success: false, method: 'sqlite', error: (err as Error).message };
+    });
+  }
+
+  private async appendLocal(action: string, recordId: string, payloadStr: string, timestamp: Date) {
     const prevBlock = await this.prisma.ledgerBlock.findFirst({
       orderBy: { id: 'desc' },
     });

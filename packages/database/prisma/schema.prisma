@@ -12,10 +12,17 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  role         String // ADMIN, VETERINARIAN, TESTER
-  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  role         String // ADMIN, VETERINARIAN, TESTER, FARMER
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, PENDING_APPROVAL
   phone        String?
   department   String?
+  // Session & credential security
+  tokenVersion        Int       @default(0) // bumped to revoke every issued JWT
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  passwordChangedAt   DateTime?
+  mustChangePassword  Boolean   @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   farms        Farm[]
@@ -230,6 +237,7 @@ model Inventory {
 model Notification {
   id        String   @id @default(uuid())
   userId    String?
+  targetRole String? // when set (and userId is null) only users of this role see it
   title     String
   message   String
   type      String   @default("GENERAL") // GENERAL, ALERT, WARNING, INFO
@@ -251,8 +259,14 @@ model AuditLog {
   oldValue  String?
   newValue  String?
   ipAddress String?  @default("127.0.0.1")
+  // Tamper-evident hash chain: hash = sha256(prevHash + canonical record)
+  sequence  Int?     @unique
+  prevHash  String?
+  hash      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([entity, entityId])
 }
 
 model WithdrawalRecord {
@@ -354,6 +368,8 @@ model OwnershipTransfer {
   resolvedDate       DateTime?
   notes              String?
   rejectionReason    String?
+  requestedById      String?
+  requestedByName    String?
   approvedById       String?
   approvedBy         User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
   currentOwnerId     String?

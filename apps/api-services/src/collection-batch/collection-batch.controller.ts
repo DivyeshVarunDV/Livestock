@@ -1,13 +1,16 @@
-import { Controller, Get, Post, Put, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body } from '@nestjs/common';
 import { CollectionBatchService } from './collection-batch.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { Permission } from '../auth/permissions';
+import { CurrentUser } from '../common/actor';
+import type { Actor } from '../common/actor';
 
 @Controller('collection-batches')
-@UseGuards(JwtAuthGuard)
 export class CollectionBatchController {
   constructor(private readonly collectionBatchService: CollectionBatchService) {}
 
   @Get()
+  @RequirePermissions(Permission.BATCH_READ)
   findAll(
     @Query('status') status?: string,
     @Query('productType') productType?: string,
@@ -16,21 +19,25 @@ export class CollectionBatchController {
   }
 
   @Get(':id')
+  @RequirePermissions(Permission.BATCH_READ)
   findOne(@Param('id') id: string) {
     return this.collectionBatchService.findOne(id);
   }
 
   @Post()
-  create(@Body() createDto: any) {
-    return this.collectionBatchService.create(createDto);
+  @RequirePermissions(Permission.BATCH_WRITE)
+  create(@CurrentUser() actor: Actor, @Body() createDto: any) {
+    return this.collectionBatchService.create(actor, createDto);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() updateDto: any) {
-    return this.collectionBatchService.update(id, updateDto);
+  @RequirePermissions(Permission.BATCH_WRITE)
+  update(@CurrentUser() actor: Actor, @Param('id') id: string, @Body() updateDto: any) {
+    return this.collectionBatchService.update(actor, id, updateDto);
   }
 
   @Get(':id/traceability')
+  @RequirePermissions(Permission.BATCH_READ)
   getTraceability(@Param('id') id: string) {
     return this.collectionBatchService.getTraceability(id);
   }

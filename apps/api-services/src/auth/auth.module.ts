@@ -4,17 +4,22 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { LoginRateLimiter } from './login-rate-limiter';
+import { getJwtExpiresIn, getJwtSecret } from './jwt.config';
 
 @Module({
   imports: [
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'agrishield-secret-key-12345',
-      signOptions: { expiresIn: '1d' },
+    // Async so the secret is read after the environment has been loaded.
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: getJwtSecret(),
+        signOptions: { expiresIn: getJwtExpiresIn() as any, algorithm: 'HS256' },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, LoginRateLimiter],
   exports: [AuthService],
 })
 export class AuthModule {}

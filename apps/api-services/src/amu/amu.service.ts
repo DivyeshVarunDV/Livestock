@@ -1,9 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor } from '../common/actor';
+import { generateCode } from '../common/codes';
+import { parseDate } from '../common/diff';
 
 @Injectable()
 export class AmuService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async findAll(animalId?: string) {
     return this.prisma.amuRecord.findMany({
@@ -16,44 +23,51 @@ export class AmuService {
     });
   }
 
-  async create(dto: any) {
+  /** An AMU record always documents an existing treatment of the same animal. */
+  async create(actor: Actor, dto: any) {
+    if (!dto?.treatmentId) throw new BadRequestException('treatmentId is required: antimicrobial use must be linked to a recorded treatment');
+    const treatment = await this.prisma.treatment.findUnique({ where: { id: dto.treatmentId } });
+    if (!treatment) throw new BadRequestException('Treatment not found');
+    if (dto.animalId && dto.animalId !== treatment.animalId) {
+      throw new BadRequestException('Animal does not match the linked treatment');
+    }
+    const startDate = parseDate(dto.startDate, 'startDate') ?? treatment.administrationDate;
+    const endDate = parseDate(dto.endDate, 'endDate');
+    if (endDate && endDate < startDate) throw new BadRequestException('endDate cannot be before startDate');
+
     const record = await this.prisma.amuRecord.create({
       data: {
-        amuCode: dto.amuCode || null,
-        animalId: dto.animalId,
-        treatmentId: dto.treatmentId || null,
-        medicine: dto.medicine,
-        activeIngredient: dto.activeIngredient || null,
-        dosage: dto.dosage,
-        route: dto.route || null,
-        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
-        reason: dto.reason || null,
-        veterinarianId: dto.veterinarianId || null,
-        veterinarianName: dto.veterinarianName || null,
+        amuCode: dto.amuCode || generateCode('AMU'),
+        animalId: treatment.animalId,
+        treatmentId: treatment.id,
+        medicine: dto.medicine || treatment.drugName,
+        activeIngredient: dto.activeIngredient || treatment.activeIngredient || null,
+        dosage: dto.dosage || treatment.dosage,
+        route: dto.route || treatment.route || null,
+        startDate,
+        endDate,
+        reason: dto.reason || treatment.reason || null,
+        veterinarianId: actor.id,
+        veterinarianName: actor.name,
       },
     });
 
-    await this.prisma.auditLog.create({
-      data: {
-        userId: dto.veterinarianId || null,
-        userName: dto.veterinarianName || 'System Vet',
-        role: 'VETERINARIAN',
-        action: 'AMU Record Added',
-        entity: 'AMU_RECORD',
-        entityId: record.id,
-        newValue: JSON.stringify({ animalId: dto.animalId, medicine: dto.medicine, dosage: dto.dosage }),
-      },
+    await this.audit.record(actor, {
+      action: 'AMU_RECORD_ADDED',
+      entity: 'AMU_RECORD',
+      entityId: record.id,
+      newValue: { animalId: record.animalId, treatmentId: treatment.id, medicine: record.medicine, dosage: record.dosage },
     });
-
     return record;
   }
 
-  async remove(id: string) {
+  async remove(actor: Actor, id: string) {
     const record = await this.prisma.amuRecord.findUnique({ where: { id } });
     if (!record) {
       throw new NotFoundException('AMU record not found');
     }
-    return this.prisma.amuRecord.delete({ where: { id } });
+    await this.prisma.amuRecord.delete({ where: { id } });
+    await this.audit.record(actor, { action: 'AMU_RECORD_DELETED', entity: 'AMU_RECORD', entityId: id, oldValue: record });
+    return { success: true };
   }
 }

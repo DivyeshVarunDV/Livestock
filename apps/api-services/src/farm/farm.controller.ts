@@ -1,43 +1,41 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { FarmService } from './farm.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { Permission } from '../auth/permissions';
+import { CurrentUser } from '../common/actor';
+import type { Actor } from '../common/actor';
 
 @Controller('farms')
-@UseGuards(JwtAuthGuard)
 export class FarmController {
   constructor(private farmService: FarmService) {}
 
   @Get()
-  async findAll() {
-    return this.farmService.findAll();
+  @RequirePermissions(Permission.FARM_READ)
+  async findAll(@CurrentUser() actor: Actor) {
+    return this.farmService.findAll(actor);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.farmService.findOne(id);
+  @RequirePermissions(Permission.FARM_READ)
+  async findOne(@CurrentUser() actor: Actor, @Param('id') id: string) {
+    return this.farmService.findOne(actor, id);
   }
 
   @Post()
-  async create(@Body() dto: any) {
-    return this.farmService.create(dto);
+  @RequirePermissions(Permission.FARM_CREATE)
+  async create(@CurrentUser() actor: Actor, @Body() dto: any) {
+    return this.farmService.create(actor, dto);
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: any) {
-    return this.farmService.update(id, dto);
+  @RequirePermissions(Permission.FARM_UPDATE)
+  async update(@CurrentUser() actor: Actor, @Param('id') id: string, @Body() dto: any) {
+    return this.farmService.update(actor, id, dto);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.farmService.remove(id);
+  @RequirePermissions(Permission.FARM_DELETE)
+  async remove(@CurrentUser() actor: Actor, @Param('id') id: string) {
+    return this.farmService.remove(actor, id);
   }
 }

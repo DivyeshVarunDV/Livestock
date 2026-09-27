@@ -1,9 +1,30 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { Actor } from '../common/actor';
+import { diffFields, parseDate, requireFields } from '../common/diff';
+
+export const ANIMAL_HEALTH_STATUSES = ['HEALTHY', 'UNDER_TREATMENT', 'QUARANTINED'];
+export const ANIMAL_LIFECYCLE_STATUSES = ['ACTIVE', 'SOLD', 'DEAD', 'TRANSFERRED'];
+const GENDERS = ['MALE', 'FEMALE'];
+
+const EDITABLE_FIELDS = [
+  'tagNumber', 'name', 'species', 'breed', 'gender', 'dateOfBirth', 'age', 'weight', 'color',
+  'identificationMark', 'photoUrl', 'registrationDate', 'currentStatus', 'status',
+] as const;
 
 @Injectable()
 export class AnimalService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
+
+  /** Farmers may only see animals on farms they own. */
+  static scopeFor(actor: Actor) {
+    return actor.role === 'FARMER' ? { farm: { ownerId: actor.id ?? '__none__' } } : {};
+  }
 
   private buildAnimalCode(species?: string, id?: string) {
     const prefixMap: Record<string, string> = {
@@ -19,13 +40,17 @@ export class AnimalService {
     return `${prefix}${suffix}`;
   }
 
-  async findAll(farmId?: string) {
-    const where: any = {};
-    if (farmId) {
-      where.farmId = farmId;
+  private toNumber(value: unknown, field: string, { min = 0, allowZero = true } = {}) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < min || (!allowZero && n === 0)) {
+      throw new BadRequestException(`${field} must be a ${allowZero ? 'non-negative' : 'positive'} number`);
     }
+    return n;
+  }
+
+  async findAll(actor: Actor, farmId?: string) {
     return this.prisma.animal.findMany({
-      where,
+      where: { ...(farmId ? { farmId } : {}), ...AnimalService.scopeFor(actor) },
       include: {
         farm: { select: { id: true, name: true, farmerId: true, ownerName: true } },
         withdrawalRecords: {
@@ -38,9 +63,9 @@ export class AnimalService {
     });
   }
 
-  async findOne(id: string) {
-    const animal = await this.prisma.animal.findUnique({
-      where: { id },
+  async findOne(actor: Actor, id: string) {
+    const animal = await this.prisma.animal.findFirst({
+      where: { id, ...AnimalService.scopeFor(actor) },
       include: {
         farm: {
           select: {
@@ -80,8 +105,8 @@ export class AnimalService {
     return animal;
   }
 
-  async getTimeline(id: string) {
-    const animal = await this.findOne(id);
+  async getTimeline(actor: Actor, id: string) {
+    const animal = await this.findOne(actor, id);
     const events: any[] = [];
 
     (animal.healthRecords || []).forEach((h: any) => {
@@ -193,13 +218,13 @@ export class AnimalService {
     return events;
   }
 
-  async getClearance(id: string) {
-    const animal = await this.prisma.animal.findUnique({
-      where: { id },
+  async getClearance(actor: Actor, id: string) {
+    const animal = await this.prisma.animal.findFirst({
+      where: { id, ...AnimalService.scopeFor(actor) },
       include: {
         productClearances: true,
         withdrawalRecords: {
-          where: { status: 'RESTRICTED' },
+          where: { withdrawalEndDate: { gt: new Date() } },
           orderBy: { withdrawalEndDate: 'desc' },
         },
       },
@@ -217,8 +242,10 @@ export class AnimalService {
       };
     }
 
+    // Active withdrawals always win over cached clearance rows.
     for (const w of animal.withdrawalRecords) {
-      if (!clearanceMap[w.productType]) {
+      const current = clearanceMap[w.productType];
+      if (!current || current.status === 'CLEARED' || new Date(current.restrictionEnd ?? 0) < w.withdrawalEndDate) {
         clearanceMap[w.productType] = {
           status: 'RESTRICTED',
           reason: `Active withdrawal: ${w.medicine}`,
@@ -244,59 +271,160 @@ export class AnimalService {
     };
   }
 
-  async create(dto: any) {
-    try {
-      const created = await this.prisma.animal.create({
-        data: {
-          tagNumber: dto.tagNumber,
-          name: dto.name,
-          species: dto.species,
-          breed: dto.breed,
-          gender: dto.gender,
-          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
-          age: Number(dto.age),
-          weight: Number(dto.weight),
-          color: dto.color || null,
-          identificationMark: dto.identificationMark || null,
-          photoUrl: dto.photoUrl || null,
-          registrationDate: dto.registrationDate ? new Date(dto.registrationDate) : new Date(),
-          currentStatus: dto.currentStatus || 'ACTIVE',
-          status: dto.status || 'HEALTHY',
-          mrlStatus: dto.mrlStatus || 'CLEARED',
-          farmId: dto.farmId,
-        },
-      });
-
-      return this.prisma.animal.update({
-        where: { id: created.id },
-        data: {
-          animalCode: dto.animalCode || this.buildAnimalCode(dto.species, created.id),
-        },
-      });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        throw new ConflictException('An animal with this Tag Number already exists.');
-      }
-      throw error;
+  async create(actor: Actor, dto: any) {
+    requireFields(dto, ['tagNumber', 'name', 'species', 'breed', 'gender', 'farmId']);
+    const gender = String(dto.gender).toUpperCase();
+    if (!GENDERS.includes(gender)) throw new BadRequestException('gender must be MALE or FEMALE');
+    const status = dto.status ? String(dto.status).toUpperCase() : 'HEALTHY';
+    if (!ANIMAL_HEALTH_STATUSES.includes(status)) {
+      throw new BadRequestException(`status must be one of ${ANIMAL_HEALTH_STATUSES.join(', ')}`);
     }
+
+    const farm = await this.prisma.farm.findUnique({ where: { id: dto.farmId } });
+    if (!farm) throw new BadRequestException('Selected farm does not exist');
+    if (farm.farmStatus !== 'ACTIVE') {
+      throw new BadRequestException(`Animals cannot be registered to a farm with status ${farm.farmStatus}`);
+    }
+
+    const tagNumber = String(dto.tagNumber).trim();
+    const dup = await this.prisma.animal.findUnique({ where: { tagNumber } });
+    if (dup) throw new ConflictException('An animal with this Tag Number already exists.');
+
+    const id = randomUUID();
+    const dateOfBirth = parseDate(dto.dateOfBirth, 'dateOfBirth');
+    if (dateOfBirth && dateOfBirth > new Date()) throw new BadRequestException('dateOfBirth cannot be in the future');
+
+    const created = await this.prisma.animal.create({
+      data: {
+        id,
+        tagNumber,
+        animalCode: dto.animalCode || this.buildAnimalCode(dto.species, id),
+        name: String(dto.name).trim(),
+        species: String(dto.species).toUpperCase(),
+        breed: dto.breed,
+        gender,
+        dateOfBirth,
+        age: this.toNumber(dto.age ?? 0, 'age'),
+        weight: this.toNumber(dto.weight ?? 0, 'weight'),
+        color: dto.color || null,
+        identificationMark: dto.identificationMark || null,
+        photoUrl: dto.photoUrl || null,
+        registrationDate: parseDate(dto.registrationDate, 'registrationDate') ?? new Date(),
+        currentStatus: 'ACTIVE',
+        status,
+        // Computed from withdrawal records only; never accepted from the client.
+        mrlStatus: 'CLEARED',
+        farmId: dto.farmId,
+      },
+    });
+
+    await this.audit.record(actor, {
+      action: 'ANIMAL_REGISTERED',
+      entity: 'ANIMAL',
+      entityId: created.id,
+      newValue: { tagNumber, animalCode: created.animalCode, species: created.species, farmId: created.farmId },
+    });
+    return created;
   }
 
-  async update(id: string, dto: any) {
-    const data: any = { ...dto };
-    if (dto.age !== undefined) data.age = Number(dto.age);
-    if (dto.weight !== undefined) data.weight = Number(dto.weight);
-    if (dto.dateOfBirth !== undefined) data.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
-    if (dto.registrationDate !== undefined) data.registrationDate = dto.registrationDate ? new Date(dto.registrationDate) : null;
+  async update(actor: Actor, id: string, dto: any) {
+    const existing = await this.prisma.animal.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Animal not found');
 
-    return this.prisma.animal.update({
-      where: { id },
-      data,
-    });
+    if (dto.farmId !== undefined && dto.farmId !== existing.farmId) {
+      throw new BadRequestException('An animal can only change farm through an approved ownership transfer.');
+    }
+    if (dto.mrlStatus !== undefined && dto.mrlStatus !== existing.mrlStatus) {
+      throw new BadRequestException('MRL status is computed from withdrawal records and cannot be set manually.');
+    }
+    if (existing.currentStatus === 'DEAD') {
+      throw new BadRequestException('Records of a deceased animal are closed and cannot be modified.');
+    }
+
+    const data: any = {};
+    for (const key of EDITABLE_FIELDS) {
+      if (dto[key] !== undefined) data[key] = dto[key];
+    }
+    if (data.tagNumber !== undefined) {
+      data.tagNumber = String(data.tagNumber).trim();
+      if (!data.tagNumber) throw new BadRequestException('tagNumber cannot be empty');
+    }
+    if (data.gender !== undefined) {
+      data.gender = String(data.gender).toUpperCase();
+      if (!GENDERS.includes(data.gender)) throw new BadRequestException('gender must be MALE or FEMALE');
+    }
+    if (data.species !== undefined) data.species = String(data.species).toUpperCase();
+    if (data.age !== undefined) data.age = this.toNumber(data.age, 'age');
+    if (data.weight !== undefined) data.weight = this.toNumber(data.weight, 'weight');
+    if (data.dateOfBirth !== undefined) data.dateOfBirth = parseDate(data.dateOfBirth, 'dateOfBirth');
+    if (data.registrationDate !== undefined) data.registrationDate = parseDate(data.registrationDate, 'registrationDate');
+    if (data.status !== undefined) {
+      data.status = String(data.status).toUpperCase();
+      if (!ANIMAL_HEALTH_STATUSES.includes(data.status)) {
+        throw new BadRequestException(`status must be one of ${ANIMAL_HEALTH_STATUSES.join(', ')}`);
+      }
+      if (data.status === 'HEALTHY' && existing.mrlStatus !== 'CLEARED') {
+        throw new BadRequestException('Animal is under an active withdrawal period and cannot be marked HEALTHY yet.');
+      }
+    }
+    if (data.currentStatus !== undefined) {
+      data.currentStatus = String(data.currentStatus).toUpperCase();
+      if (!ANIMAL_LIFECYCLE_STATUSES.includes(data.currentStatus)) {
+        throw new BadRequestException(`currentStatus must be one of ${ANIMAL_LIFECYCLE_STATUSES.join(', ')}`);
+      }
+      if (data.currentStatus === 'TRANSFERRED') {
+        throw new BadRequestException('Use the ownership transfer workflow to transfer an animal.');
+      }
+      if (data.currentStatus === 'SOLD' && existing.mrlStatus !== 'CLEARED') {
+        throw new BadRequestException('Animal is under an active withdrawal period and cannot be sold.');
+      }
+    }
+
+    const updated = await this.prisma.animal.update({ where: { id }, data });
+    const diff = diffFields(existing, updated, Object.keys(data));
+    if (diff.changed) {
+      await this.audit.record(actor, {
+        action: data.currentStatus && data.currentStatus !== existing.currentStatus ? 'ANIMAL_LIFECYCLE_CHANGED' : 'ANIMAL_UPDATED',
+        entity: 'ANIMAL',
+        entityId: id,
+        oldValue: diff.before,
+        newValue: diff.after,
+      });
+    }
+    return updated;
   }
 
-  async remove(id: string) {
-    return this.prisma.animal.delete({
+  /**
+   * Only an erroneous registration with no history can be deleted; otherwise
+   * the veterinary and food-safety record would be destroyed (the schema
+   * cascades). Such animals must be marked SOLD / DEAD instead.
+   */
+  async remove(actor: Actor, id: string) {
+    const animal = await this.prisma.animal.findUnique({
       where: { id },
+      include: {
+        _count: {
+          select: {
+            healthRecords: true, vaccinations: true, treatments: true, prescriptions: true, withdrawalRecords: true,
+            amuRecords: true, milkCollections: true, violations: true, ownershipTransfers: true, milkTests: true,
+            medicineDispensings: true,
+          },
+        },
+      },
     });
+    if (!animal) throw new NotFoundException('Animal not found');
+    const linked = Object.entries(animal._count).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`);
+    if (linked.length > 0) {
+      throw new ConflictException(
+        `Animal has official records (${linked.join(', ')}) and cannot be deleted. Update its lifecycle status (SOLD / DEAD) instead.`,
+      );
+    }
+    await this.prisma.$transaction([
+      this.prisma.productClearance.deleteMany({ where: { animalId: id } }),
+      this.prisma.animal.delete({ where: { id } }),
+    ]);
+    const { _count, ...snapshot } = animal;
+    await this.audit.record(actor, { action: 'ANIMAL_DELETED', entity: 'ANIMAL', entityId: id, oldValue: snapshot });
+    return { success: true };
   }
 }

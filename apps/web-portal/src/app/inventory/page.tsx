@@ -59,70 +59,10 @@ export default function InventoryPage() {
           return merged.find(r => r.drugName === name);
         }));
       }
-    } catch {
-      // Enterprise default inventory list if offline/empty
-      setItems([
-        {
-          id: 'inv-1',
-          medicineName: 'Oxytetracycline 200mg/ml',
-          manufacturer: 'AgroVet Pharma Ltd.',
-          batchNumber: 'OXY-2026-884',
-          expiryDate: '2027-12-31',
-          stock: 45,
-          minimumStock: 15,
-          supplier: 'Global Vet Supply Co.',
-          cost: 32.5,
-          storageLocation: 'Cold Storage Room B',
-        },
-        {
-          id: 'inv-2',
-          medicineName: 'Amoxicillin 150mg/ml LA',
-          manufacturer: 'Pfizer Animal Health',
-          batchNumber: 'AMX-2025-012',
-          expiryDate: '2026-08-15',
-          stock: 6,
-          minimumStock: 10,
-          supplier: 'AgriShield Logistics',
-          cost: 45.0,
-          storageLocation: 'Main Pharmacy Rack 2',
-        },
-        {
-          id: 'inv-3',
-          medicineName: 'FMD Polyvalent Vaccine',
-          manufacturer: 'Biovet Global',
-          batchNumber: 'FMD-VAC-991',
-          expiryDate: '2027-03-20',
-          stock: 120,
-          minimumStock: 30,
-          supplier: 'Biovet Direct',
-          cost: 18.0,
-          storageLocation: 'Cold Storage Refrigerator 1',
-        },
-        {
-          id: 'inv-4',
-          medicineName: 'Ivermectin 1% Injectable',
-          manufacturer: 'Bayer Animal Ltd.',
-          batchNumber: 'IVM-2026-441',
-          expiryDate: '2028-01-10',
-          stock: 8,
-          minimumStock: 15,
-          supplier: 'Global Vet Supply Co.',
-          cost: 28.0,
-          storageLocation: 'Main Pharmacy Rack 1',
-        },
-        {
-          id: 'inv-5',
-          medicineName: 'Enrofloxacin Inj 10%',
-          manufacturer: 'Virbac Animal Health',
-          batchNumber: 'ENR-2026-302',
-          expiryDate: '2027-09-15',
-          stock: 24,
-          minimumStock: 10,
-          supplier: 'AgriShield Logistics',
-          cost: 38.0,
-          storageLocation: 'Main Pharmacy Rack 3',
-        },
-      ]);
+    } catch (err: any) {
+      // Never show a fabricated stock list for an official pharmacy register.
+      setItems([]);
+      alert(`Unable to load inventory: ${err?.message || 'server unavailable'}`);
     } finally {
       setLoading(false);
     }
@@ -189,21 +129,8 @@ export default function InventoryPage() {
       }
       setModalOpen(false);
       loadInventory();
-    } catch {
-      // offline fallback update state
-      if (editItem) {
-        setItems(
-          items.map((i) =>
-            i.id === editItem.id ? { ...i, ...payload } : i,
-          ),
-        );
-      } else {
-        setItems([
-          ...items,
-          { id: `inv-${Date.now()}`, ...payload },
-        ]);
-      }
-      setModalOpen(false);
+    } catch (err: any) {
+      alert(err?.message || 'Could not save the inventory item.');
     }
   };
 
@@ -211,8 +138,10 @@ export default function InventoryPage() {
     if (!confirm('Are you sure you want to delete this medicine record?')) return;
     try {
       await apiFetch(`/inventory/${id}`, { method: 'DELETE' });
-    } catch {}
-    setItems(items.filter((i) => i.id !== id));
+      setItems(items.filter((i) => i.id !== id));
+    } catch (err: any) {
+      alert(err?.message || 'Could not delete the inventory item.');
+    }
   };
 
   const filteredItems = items.filter((item) => {

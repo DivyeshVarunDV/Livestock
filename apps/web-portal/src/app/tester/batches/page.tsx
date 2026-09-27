@@ -62,8 +62,9 @@ export default function BatchesPage() {
         body: JSON.stringify({ status }),
       });
       loadData();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // e.g. "Batch has no passing laboratory result" — the officer must see why.
+      alert(err?.message || 'Could not update the batch status.');
     }
   };
 
@@ -86,8 +87,8 @@ export default function BatchesPage() {
         notes: '',
       });
       loadData();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      alert(err?.message || 'Could not create the batch.');
     } finally {
       setSubmitting(false);
     }

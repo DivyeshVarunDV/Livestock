@@ -38,34 +38,10 @@ export default function VetInventoryPage() {
       ]);
       setItems(Array.isArray(inventoryData) ? inventoryData : []);
       if (alerts) setAlertsData(alerts);
-    } catch {
-      // Enterprise default inventory list if offline/empty
-      setItems([
-        {
-          id: 'inv-1',
-          medicineName: 'Oxytetracycline 200mg/ml',
-          manufacturer: 'AgroVet Pharma Ltd.',
-          batchNumber: 'OXY-2026-884',
-          expiryDate: '2027-12-31',
-          stock: 45,
-          minimumStock: 15,
-          supplier: 'Global Vet Supply Co.',
-          cost: 32.5,
-          storageLocation: 'Cold Storage Room B',
-        },
-        {
-          id: 'inv-2',
-          medicineName: 'Amoxicillin 150mg/ml LA',
-          manufacturer: 'Pfizer Animal Health',
-          batchNumber: 'AMX-2025-012',
-          expiryDate: '2026-08-15',
-          stock: 6,
-          minimumStock: 10,
-          supplier: 'AgriShield Logistics',
-          cost: 45.0,
-          storageLocation: 'Main Pharmacy Rack 2',
-        },
-      ]);
+    } catch (err: any) {
+      // Never show a fabricated stock list for an official pharmacy register.
+      setItems([]);
+      alert(`Unable to load inventory: ${err?.message || 'server unavailable'}`);
     } finally {
       setLoading(false);
     }
@@ -129,21 +105,8 @@ export default function VetInventoryPage() {
       }
       setModalOpen(false);
       loadInventory();
-    } catch {
-      // offline fallback update state
-      if (editItem) {
-        setItems(
-          items.map((i) =>
-            i.id === editItem.id ? { ...i, ...payload } : i,
-          ),
-        );
-      } else {
-        setItems([
-          ...items,
-          { id: `inv-${Date.now()}`, ...payload },
-        ]);
-      }
-      setModalOpen(false);
+    } catch (err: any) {
+      alert(err?.message || 'Could not save the inventory item.');
     }
   };
 
@@ -151,8 +114,10 @@ export default function VetInventoryPage() {
     if (!confirm('Are you sure you want to delete this medicine record?')) return;
     try {
       await apiFetch(`/inventory/${id}`, { method: 'DELETE' });
-    } catch {}
-    setItems(items.filter((i) => i.id !== id));
+      setItems(items.filter((i) => i.id !== id));
+    } catch (err: any) {
+      alert(err?.message || 'Could not delete the inventory item.');
+    }
   };
 
   const isExpiringSoon = (expiryDate: string) => {

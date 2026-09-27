@@ -1,6 +1,13 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
+import { PermissionsGuard } from './auth/permissions.guard';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
+import { ComplianceModule } from './compliance/compliance.module';
+import { PublicModule } from './public/public.module';
 import { FarmModule } from './farm/farm.module';
 import { AnimalModule } from './animal/animal.module';
 import { HealthModule } from './health/health.module';
@@ -25,7 +32,11 @@ import { ProductClearanceModule } from './product-clearance/product-clearance.mo
 @Module({
   imports: [
     PrismaModule,
+    AuditModule,
+    NotificationModule,
+    ComplianceModule,
     AuthModule,
+    PublicModule,
     FarmModule,
     AnimalModule,
     HealthModule,
@@ -34,8 +45,6 @@ import { ProductClearanceModule } from './product-clearance/product-clearance.mo
     ReportModule,
     LedgerModule,
     InventoryModule,
-    NotificationModule,
-    AuditModule,
     UserModule,
     PrescriptionModule,
     MilkCollectionModule,
@@ -46,6 +55,14 @@ import { ProductClearanceModule } from './product-clearance/product-clearance.mo
     MedicineDispensingModule,
     CollectionBatchModule,
     ProductClearanceModule,
+  ],
+  providers: [
+    // Order matters: authenticate first, then authorise. Every route is
+    // protected unless explicitly marked @Public().
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_FILTER, useClass: PrismaExceptionFilter },
   ],
 })
 export class AppModule {}

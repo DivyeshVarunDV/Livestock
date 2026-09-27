@@ -129,10 +129,13 @@ export default function NewTreatment() {
         payload.inventoryId = formData.inventoryId;
       }
 
-      await apiFetch('/treatments', {
+      const saved = await apiFetch('/treatments', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      if (Array.isArray(saved?.complianceNotes) && saved.complianceNotes.length > 0) {
+        alert(`Treatment recorded.\n\n${saved.complianceNotes.join('\n')}`);
+      }
       
       router.push(user?.role?.toLowerCase() === 'veterinarian' ? '/veterinarian/treatments' : '/treatments');
       router.refresh();
@@ -212,7 +215,7 @@ export default function NewTreatment() {
             
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700">Veterinarian Name</label>
-              <input required type="text" name="veterinarianName" value={formData.veterinarianName} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2" />
+              <input type="text" name="veterinarianName" value={formData.veterinarianName} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2" readOnly aria-readonly="true" title="Recorded automatically from your signed-in account" />
             </div>
           </div>
           

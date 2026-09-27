@@ -319,12 +319,11 @@ export default function MedicineDispensingPage() {
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dispensed By</label>
                 <input
-                  required
+                 
                   name="dispensedBy"
                   value={formData.dispensedBy}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
-                />
+                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-emerald-600 outline-none" readOnly aria-readonly="true" title="Recorded automatically from your signed-in account" />
               </div>
             </div>
 

@@ -78,8 +78,8 @@ export default function AdminInvestigationsPage() {
       if (selectedViolation) {
         setSelectedViolation({ ...selectedViolation, status: updateStatus, adminRemarks });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      alert(err?.message || 'Could not update the case.');
     } finally {
       setSubmitting(false);
     }

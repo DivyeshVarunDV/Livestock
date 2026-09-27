@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import TopNavbar from './TopNavbar';
 import { useEffect } from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { canAccessRoute } from '@/lib/access';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,42 +46,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // RBAC for every role
-  let isAllowed = true;
+  // UI route policy (the API independently enforces permissions on every request).
   const role = user?.role?.toLowerCase() || '';
-
-  // Routes accessible by all logged-in users
-  const commonRoutes = ['/profile', '/notifications', '/dashboard'];
-  const isCommonRoute = commonRoutes.some(r => pathname.startsWith(r)) || pathname === '/';
-
-  if (!isCommonRoute) {
-    if (role === 'admin') {
-      // Admin can access admin tools and shared resources, but not specific vet/tester dashboards
-      if (pathname.startsWith('/veterinarian') || pathname.startsWith('/tester')) {
-        isAllowed = false;
-      }
-    } else if (role === 'veterinarian') {
-      // Vet can access /veterinarian and shared resources (like /treatments, /animals)
-      // Block them from admin and tester specific areas
-      const restrictedForVet = ['/admin', '/tester', '/users', '/audit', '/settings'];
-      if (restrictedForVet.some(r => pathname.startsWith(r))) {
-        isAllowed = false;
-      }
-    } else if (role === 'tester') {
-      // Tester can access tester tools and specific shared resources
-      const testerRoutes = ['/tester', '/farms', '/milk-collection', '/milk-testing', '/violations', '/animals', '/reports', '/product-clearances'];
-      if (!testerRoutes.some(r => pathname.startsWith(r))) {
-        isAllowed = false;
-      }
-      // Testers cannot register farms or animals
-      if (pathname === '/farms/new' || pathname === '/animals/new') {
-        isAllowed = false;
-      }
-    } else {
-      // Unknown roles are blocked from everything except common routes
-      isAllowed = false;
-    }
-  }
+  const isAllowed = canAccessRoute(role, pathname);
 
   let content = children;
   if (!isAllowed) {

@@ -1,17 +1,34 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { ComplianceService } from '../compliance/compliance.service';
+import { Actor } from '../common/actor';
 
 @Injectable()
 export class ProductClearanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private compliance: ComplianceService,
+  ) {}
 
-  async findAll(filters: { animalId?: string; farmerId?: string; status?: string }) {
+  private farmScope(actor: Actor) {
+    return actor.role === 'FARMER' ? { ownerId: actor.id ?? '__none__' } : {};
+  }
+
+  private async assertAnimalVisible(actor: Actor, animalId: string) {
+    const animal = await this.prisma.animal.findFirst({
+      where: { id: animalId, ...(actor.role === 'FARMER' ? { farm: this.farmScope(actor) } : {}) },
+      select: { id: true },
+    });
+    if (!animal) throw new NotFoundException(`Animal with ID ${animalId} not found`);
+  }
+
+  async findAll(actor: Actor, filters: { animalId?: string; farmerId?: string; status?: string }) {
     const where: any = {};
     if (filters.animalId) where.animalId = filters.animalId;
     if (filters.status) where.status = filters.status;
-    if (filters.farmerId) {
-      where.animal = { farm: { farmerId: filters.farmerId } };
-    }
+    const farmWhere: any = { ...this.farmScope(actor) };
+    if (filters.farmerId) farmWhere.farmerId = filters.farmerId;
+    if (Object.keys(farmWhere).length > 0) where.animal = { farm: farmWhere };
 
     return this.prisma.productClearance.findMany({
       where,
@@ -27,7 +44,8 @@ export class ProductClearanceService {
     });
   }
 
-  async getByAnimal(animalId: string) {
+  async getByAnimal(actor: Actor, animalId: string) {
+    await this.assertAnimalVisible(actor, animalId);
     return this.prisma.productClearance.findMany({
       where: { animalId },
       include: { relatedWithdrawal: true },
@@ -35,18 +53,19 @@ export class ProductClearanceService {
     });
   }
 
-  async getByFarmer(farmerId: string) {
+  async getByFarmer(actor: Actor, farmerId: string) {
     const farm = await this.prisma.farm.findFirst({
-      where: { farmerId },
+      where: { farmerId, ...this.farmScope(actor) },
     });
     if (!farm) throw new NotFoundException(`Farm not found for farmer ID: ${farmerId}`);
 
+    const now = new Date();
     const animals = await this.prisma.animal.findMany({
       where: { farmId: farm.id },
       include: {
         productClearances: { orderBy: { productType: 'asc' } },
         withdrawalRecords: {
-          where: { status: 'RESTRICTED' },
+          where: { withdrawalEndDate: { gt: now } },
           orderBy: { withdrawalEndDate: 'desc' },
         },
       },
@@ -55,7 +74,6 @@ export class ProductClearanceService {
     return {
       farm: { id: farm.id, farmerId: farm.farmerId, name: farm.name, ownerName: farm.ownerName, fullName: farm.fullName },
       animals: animals.map((animal) => {
-        // Build clearance map per product type
         const clearanceMap: Record<string, any> = {};
         for (const c of animal.productClearances) {
           clearanceMap[c.productType] = {
@@ -66,9 +84,10 @@ export class ProductClearanceService {
           };
         }
 
-        // Also derive clearance from active withdrawal records if no explicit clearance exists
+        // Live withdrawal records are authoritative over cached clearance rows.
         for (const w of animal.withdrawalRecords) {
-          if (!clearanceMap[w.productType]) {
+          const current = clearanceMap[w.productType];
+          if (!current || current.status === 'CLEARED' || new Date(current.restrictionEnd ?? 0) < w.withdrawalEndDate) {
             clearanceMap[w.productType] = {
               status: 'RESTRICTED',
               reason: `Active withdrawal: ${w.medicine}`,
@@ -77,8 +96,13 @@ export class ProductClearanceService {
             };
           }
         }
+        // A cached RESTRICTED row whose withdrawal has expired is reported as cleared.
+        for (const [type, c] of Object.entries(clearanceMap)) {
+          if (c.status === 'RESTRICTED' && !animal.withdrawalRecords.some((w) => w.productType === type)) {
+            clearanceMap[type] = { status: 'CLEARED', reason: null, restrictionStart: null, restrictionEnd: null };
+          }
+        }
 
-        // Default products if none exist
         if (Object.keys(clearanceMap).length === 0) {
           clearanceMap['MILK'] = { status: 'CLEARED', reason: null, restrictionStart: null, restrictionEnd: null };
         }
@@ -91,98 +115,20 @@ export class ProductClearanceService {
           species: animal.species,
           breed: animal.breed,
           mrlStatus: animal.mrlStatus,
+          currentStatus: animal.currentStatus,
           clearances: clearanceMap,
         };
       }),
     };
   }
 
-  async refreshClearance(animalId: string) {
-    const animal = await this.prisma.animal.findUnique({ where: { id: animalId } });
-    if (!animal) throw new NotFoundException(`Animal with ID ${animalId} not found`);
-
-    const withdrawals = await this.prisma.withdrawalRecord.findMany({
-      where: { animalId },
-    });
-
-    const productTypes = [...new Set(withdrawals.map((w) => w.productType))];
-    if (productTypes.length === 0) productTypes.push('MILK');
-
-    const now = new Date();
-    const updatedClearances = [];
-
-    for (const productType of productTypes) {
-      const activeWithdrawals = withdrawals.filter(
-        (w) => w.productType === productType && new Date(w.withdrawalEndDate) > now,
-      );
-
-      const status = activeWithdrawals.length > 0 ? 'RESTRICTED' : 'CLEARED';
-      const reason = activeWithdrawals.length > 0
-        ? `Active withdrawal: ${activeWithdrawals.map((w) => w.medicine).join(', ')}`
-        : null;
-      const restrictionEnd = activeWithdrawals.length > 0
-        ? new Date(Math.max(...activeWithdrawals.map((w) => new Date(w.withdrawalEndDate).getTime())))
-        : null;
-      const restrictionStart = activeWithdrawals.length > 0
-        ? new Date(Math.min(...activeWithdrawals.map((w) => new Date(w.treatmentDate).getTime())))
-        : null;
-
-      const existing = await this.prisma.productClearance.findFirst({
-        where: { animalId, productType },
-      });
-
-      if (existing) {
-        const updated = await this.prisma.productClearance.update({
-          where: { id: existing.id },
-          data: { status, reason, restrictionStart, restrictionEnd },
-        });
-        updatedClearances.push(updated);
-      } else {
-        const created = await this.prisma.productClearance.create({
-          data: { animalId, productType, status, reason, restrictionStart, restrictionEnd },
-        });
-        updatedClearances.push(created);
-      }
-    }
-
-    return updatedClearances;
+  async refreshClearance(actor: Actor, animalId: string) {
+    await this.compliance.recomputeAnimal(animalId, actor);
+    return this.prisma.productClearance.findMany({ where: { animalId }, orderBy: { productType: 'asc' } });
   }
 
-  async checkClearance(animalId: string, productType: string) {
-    // First try explicit clearance record
-    const clearance = await this.prisma.productClearance.findFirst({
-      where: { animalId, productType },
-    });
-
-    if (clearance) {
-      return {
-        cleared: clearance.status === 'CLEARED',
-        status: clearance.status,
-        reason: clearance.reason,
-        restrictionEnd: clearance.restrictionEnd,
-      };
-    }
-
-    // Fall back to withdrawal records
-    const now = new Date();
-    const activeWithdrawal = await this.prisma.withdrawalRecord.findFirst({
-      where: {
-        animalId,
-        productType,
-        withdrawalEndDate: { gt: now },
-        status: 'RESTRICTED',
-      },
-    });
-
-    if (activeWithdrawal) {
-      return {
-        cleared: false,
-        status: 'RESTRICTED',
-        reason: `Active withdrawal: ${activeWithdrawal.medicine}`,
-        restrictionEnd: activeWithdrawal.withdrawalEndDate,
-      };
-    }
-
-    return { cleared: true, status: 'CLEARED', reason: null, restrictionEnd: null };
+  async checkClearance(actor: Actor, animalId: string, productType: string) {
+    await this.assertAnimalVisible(actor, animalId);
+    return this.compliance.checkClearance(animalId, productType);
   }
 }

@@ -1,11 +1,10 @@
-
 import { Module } from '@nestjs/common';
 import { MilkTestController } from './milk-test.controller';
 import { MilkTestService } from './milk-test.service';
-import { PrismaModule } from '../prisma.module';
+import { LedgerModule } from '../ledger/ledger.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [LedgerModule],
   controllers: [MilkTestController],
   providers: [MilkTestService],
   exports: [MilkTestService],
