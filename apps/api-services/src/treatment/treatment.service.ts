@@ -119,12 +119,16 @@ export class TreatmentService {
       }
     }
 
-    // Withdrawal period: the largest of the vet's value, the prescription, the stock item and the MRL rule.
+    // Withdrawal period: the largest of the vet's value, the medicine list, the prescription, the stock item and the MRL rule.
     const complianceNotes: string[] = [];
     const rule = await this.findApplicableRule(dto.drugName, animal.species, dto.activeIngredient ?? prescription?.activeIngredient);
     const requested = dto.withdrawalPeriod ?? 0;
+    const catalogue = (await this.prisma.medicine.findMany({ where: { status: 'ACTIVE' } })).find(
+      (m) => m.name.toLowerCase() === dto.drugName.trim().toLowerCase(),
+    );
     const floors: { source: string; days: number }[] = [
       { source: 'requested', days: requested },
+      { source: `medicine list (${catalogue?.name})`, days: catalogue?.withdrawalPeriod ?? 0 },
       { source: `MRL rule (${rule?.drugName}/${rule?.species})`, days: rule?.withdrawalPeriod ?? 0 },
       { source: 'prescription', days: prescription?.applicableWithdrawalPeriod ?? 0 },
       { source: `stock item ${inventory?.batchNumber}`, days: inventory?.withdrawalPeriod ?? 0 },

@@ -18,6 +18,12 @@ export class CollectionBatchController {
     return this.collectionBatchService.findAll(status, productType);
   }
 
+  @Get('next-code')
+  @RequirePermissions(Permission.BATCH_READ)
+  nextCode(@Query('prefix') prefix?: string) {
+    return this.collectionBatchService.nextCode(prefix);
+  }
+
   @Get(':id')
   @RequirePermissions(Permission.BATCH_READ)
   findOne(@Param('id') id: string) {

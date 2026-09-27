@@ -190,6 +190,7 @@ export default function WithdrawalPage() {
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Animal ID</th>
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Farm</th>
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Drug</th>
+                      <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Veterinarian</th>
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Treatment Date</th>
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Withdrawal End</th>
                       <th className="p-4 font-semibold text-gray-900 align-middle whitespace-nowrap">Days Remaining</th>
@@ -219,6 +220,7 @@ export default function WithdrawalPage() {
                             </td>
                             <td className="p-4 font-medium text-gray-800 align-middle">{t.farmName}</td>
                             <td className="p-4 font-semibold text-gray-800 align-middle">{t.drug}</td>
+                            <td className="p-4 text-gray-700 align-middle whitespace-nowrap">{t.veterinarianName || 'N/A'}</td>
                             <td className="p-4 align-middle text-gray-700">
                               {t.adminDate ? new Date(t.adminDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                             </td>
@@ -263,7 +265,7 @@ export default function WithdrawalPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={9} className="p-8 text-center text-gray-500">
+                        <td colSpan={10} className="p-8 text-center text-gray-500">
                           No withdrawal records found matching your criteria.
                         </td>
                       </tr>
@@ -334,7 +336,42 @@ export default function WithdrawalPage() {
                 <span className="text-sm font-semibold">{selectedRecord.withdrawalStatus}</span>
               </div>
             </div>
-            
+
+            <div className="border-b border-gray-100 pb-4">
+              <h4 className="text-sm font-bold text-gray-900 mb-3">Treatment Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                  <span className="text-xs text-emerald-800 font-semibold uppercase">Veterinarian</span>
+                  <span className="text-sm font-bold text-emerald-900">{selectedRecord.veterinarianName || 'Not recorded'}</span>
+                </div>
+                {[
+                  ['Animal', [selectedRecord.animal?.name, selectedRecord.animal?.tagNumber || selectedRecord.animal?.animalCode].filter(Boolean).join(' • ')],
+                  ['Species', selectedRecord.animal?.species],
+                  ['Farm', [selectedRecord.farmName, selectedRecord.animal?.farm?.farmerId].filter(Boolean).join(' • ')],
+                  ['Disease / Diagnosis', selectedRecord.disease],
+                  ['Reason', selectedRecord.reason],
+                  ['Active Ingredient', selectedRecord.activeIngredient],
+                  ['Route', selectedRecord.route],
+                  ['Treatment Period', selectedRecord.treatmentStartDate
+                    ? `${new Date(selectedRecord.treatmentStartDate).toLocaleDateString('en-GB')}${selectedRecord.treatmentEndDate ? ` – ${new Date(selectedRecord.treatmentEndDate).toLocaleDateString('en-GB')}` : ''}`
+                    : null],
+                  ['Follow-up Required', selectedRecord.followUpRequired ? 'Yes' : 'No'],
+                  ['Restricted Products', (selectedRecord.withdrawalRecords || []).map((w: any) => w.productType).join(', ')],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <span className="text-xs text-gray-500 font-semibold block uppercase">{label}</span>
+                    <span className="text-sm text-gray-800">{value || 'N/A'}</span>
+                  </div>
+                ))}
+                {selectedRecord.notes && (
+                  <div className="col-span-2">
+                    <span className="text-xs text-gray-500 font-semibold block uppercase">Notes</span>
+                    <span className="text-sm text-gray-800 whitespace-pre-wrap">{selectedRecord.notes}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 flex items-start gap-3">
               <AlertTriangle className="text-yellow-600 shrink-0 mt-0.5" size={18} />
               <p className="text-sm text-yellow-800">

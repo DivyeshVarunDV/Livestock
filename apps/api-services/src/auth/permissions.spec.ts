@@ -97,6 +97,11 @@ describe('Role permission matrix', () => {
     expect(ROLES.filter((r) => roleHasPermission(r, Permission.LAB_TEST_WRITE))).toEqual(['TESTER']);
   });
 
+  it('lets testing officers collect products but not delete collections', () => {
+    expect(roleHasPermission('TESTER', Permission.COLLECTION_WRITE)).toBe(true);
+    expect(roleHasPermission('TESTER', Permission.COLLECTION_DELETE)).toBe(false);
+  });
+
   it('reserves administration, MRL rules, approvals and case closure for administrators', () => {
     for (const p of [Permission.USER_MANAGE, Permission.AUDIT_READ, Permission.MRL_RULE_WRITE, Permission.TRANSFER_DECIDE, Permission.VIOLATION_RESOLVE, Permission.CLINICAL_RECORD_DELETE]) {
       expect(ROLES.filter((r) => roleHasPermission(r, p))).toEqual(['ADMIN']);

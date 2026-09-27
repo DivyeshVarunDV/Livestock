@@ -26,7 +26,7 @@ A unit test (`permissions.spec.ts`) fails if any API route lacks an access polic
 | Pharmacy inventory | ✔ | ✔ | | |
 | Request ownership transfer | ✔ | ✔ | | |
 | Approve / reject transfer (not your own request) | ✔ | | | |
-| Record product collections | ✔ | | read | |
+| Record product collections | ✔ | | ✔ | |
 | Create / progress collection batches | ✔ | | ✔ | |
 | Record laboratory results | | | ✔ | |
 | Report violations | ✔ | ✔ | ✔ | |

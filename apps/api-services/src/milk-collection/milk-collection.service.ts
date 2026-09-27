@@ -6,6 +6,8 @@ import { NotificationService } from '../notification/notification.service';
 import { Actor } from '../common/actor';
 import { generateCode } from '../common/codes';
 import { diffFields, parseDate } from '../common/diff';
+import { productIneligibility } from '../common/products';
+import { nextBatchCode, normalizeBatchCode } from '../collection-batch/collection-batch.service';
 
 const OPEN_BATCH_STATUSES = ['CREATED', 'COLLECTED'];
 
@@ -51,21 +53,18 @@ export class MilkCollectionService {
     return record;
   }
 
-  async create(actor: Actor, dto: any) {
-    if (!dto?.animalId) throw new BadRequestException('animalId is required');
-    const productType = String(dto.productType || 'MILK').toUpperCase();
-
-    const animal = await this.prisma.animal.findUnique({ where: { id: dto.animalId }, include: { farm: true } });
+  /** Validates that product may be collected from this animal; blocked supply is audited and escalated. */
+  private async checkAnimal(actor: Actor, animalId: string, productType: string, farmId?: string) {
+    const animal = await this.prisma.animal.findUnique({ where: { id: animalId }, include: { farm: true } });
     if (!animal) throw new BadRequestException('Animal not found');
-    if (dto.farmId && dto.farmId !== animal.farmId) {
+    if (farmId && farmId !== animal.farmId) {
       throw new BadRequestException('Animal is not registered to the selected farm');
     }
     if (animal.currentStatus && animal.currentStatus !== 'ACTIVE') {
       throw new BadRequestException(`Products cannot be collected from an animal with status ${animal.currentStatus}`);
     }
-    if (productType === 'MILK' && animal.gender === 'MALE') {
-      throw new BadRequestException('Milk cannot be collected from a male animal');
-    }
+    const ineligible = productIneligibility(productType, animal.species, animal.gender);
+    if (ineligible) throw new BadRequestException(ineligible);
 
     // Food-safety gate: live check against withdrawal records and investigation holds.
     const clearance = await this.compliance.checkClearance(animal.id, productType);
@@ -86,14 +85,18 @@ export class MilkCollectionService {
       const until = clearance.restrictionEnd ? ` until ${new Date(clearance.restrictionEnd).toISOString().slice(0, 10)}` : '';
       throw new BadRequestException(`Product from this animal is currently ${clearance.status.toLowerCase().replace('_', ' ')}${until}. ${clearance.reason ?? ''}`.trim());
     }
+    return animal;
+  }
 
-    const quantity = dto.quantity === undefined || dto.quantity === null || dto.quantity === '' ? null : Number(dto.quantity);
+  private parseQuantity(value: unknown): number | null {
+    const quantity = value === undefined || value === null || value === '' ? null : Number(value);
     if (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0)) {
       throw new BadRequestException('quantity must be a positive number');
     }
+    return quantity;
+  }
 
-    // Link to an aggregate collection batch when the code refers to one.
-    const ref = String(dto.collectionBatchId || dto.collectionBatchCode || dto.batchId || '').trim();
+  private async findOpenBatch(ref: string, productType: string) {
     const aggregate = ref
       ? await this.prisma.collectionBatch.findFirst({ where: { OR: [{ id: ref }, { batchCode: ref }] } })
       : null;
@@ -105,6 +108,18 @@ export class MilkCollectionService {
         throw new BadRequestException(`Batch ${aggregate.batchCode} is for ${aggregate.productType}, not ${productType}.`);
       }
     }
+    return aggregate;
+  }
+
+  async create(actor: Actor, dto: any) {
+    if (!dto?.animalId) throw new BadRequestException('animalId is required');
+    const productType = String(dto.productType || 'MILK').toUpperCase();
+    const animal = await this.checkAnimal(actor, dto.animalId, productType, dto.farmId);
+    const quantity = this.parseQuantity(dto.quantity);
+
+    // Link to an aggregate collection batch when the code refers to one.
+    const ref = String(dto.collectionBatchId || dto.collectionBatchCode || dto.batchId || '').trim();
+    const aggregate = await this.findOpenBatch(ref, productType);
     const lotId = aggregate ? generateCode(aggregate.batchCode) : String(dto.batchId || '').trim() || generateCode('LOT');
     if (!aggregate) {
       const clash = await this.prisma.milkCollection.findUnique({ where: { batchId: lotId } });
@@ -138,6 +153,99 @@ export class MilkCollectionService {
       newValue: { animalId: animal.id, farmId: animal.farmId, productType, quantity, lotId, batchCode: aggregate?.batchCode ?? null },
     });
     return created;
+  }
+
+  /**
+   * Records collections from several animals into one aggregate batch, all or nothing.
+   * Every animal is checked before anything is written; with no batch given, a new batch is opened.
+   */
+  async createMany(actor: Actor, dto: any) {
+    const items: { animalId: string; quantity?: unknown }[] = Array.isArray(dto?.animals) ? dto.animals : [];
+    if (items.length === 0) throw new BadRequestException('Select at least one animal');
+    const animalIds = items.map((i) => String(i?.animalId || ''));
+    if (animalIds.some((id) => !id)) throw new BadRequestException('Every entry needs an animalId');
+    if (new Set(animalIds).size !== animalIds.length) throw new BadRequestException('An animal was selected more than once');
+    const productType = String(dto.productType || 'MILK').toUpperCase();
+
+    // An existing open batch code adds to that batch; a new code opens a batch under that code.
+    const ref = String(dto.collectionBatchId || dto.batchId || '').trim();
+    const existingBatch = await this.findOpenBatch(ref.toUpperCase(), productType);
+    const newBatchCode = existingBatch ? null : ref ? normalizeBatchCode(ref) : (await nextBatchCode(this.prisma)).batchCode;
+
+    const checked: { animal: Awaited<ReturnType<MilkCollectionService['checkAnimal']>>; quantity: number | null }[] = [];
+    const problems: string[] = [];
+    const known = await this.prisma.animal.findMany({ where: { id: { in: animalIds } }, select: { id: true, name: true, tagNumber: true } });
+    const label = (id: string) => {
+      const a = known.find((k) => k.id === id);
+      return a ? `${a.name} (${a.tagNumber})` : id;
+    };
+    for (const item of items) {
+      try {
+        const animal = await this.checkAnimal(actor, item.animalId, productType, dto.farmId);
+        checked.push({ animal, quantity: this.parseQuantity(item.quantity) });
+      } catch (e: any) {
+        problems.push(`${label(item.animalId)}: ${e?.message ?? e}`);
+      }
+    }
+    if (problems.length) {
+      throw new BadRequestException(`No collections were saved. ${problems.length} animal(s) cannot be collected: ${problems.join('; ')}`);
+    }
+
+    const collectedAt = parseDate(dto.collectionDate, 'collectionDate') ?? new Date();
+    const { batch, created } = await this.prisma.$transaction(async (tx) => {
+      const batch =
+        existingBatch ??
+        (await tx.collectionBatch.create({
+          data: {
+            batchCode: newBatchCode!,
+            productType,
+            collectionDate: collectedAt,
+            collectionCenter: dto.collectionCenter || null,
+            status: 'CREATED',
+          },
+        }));
+      const created = [];
+      for (const { animal, quantity } of checked) {
+        created.push(
+          await tx.milkCollection.create({
+            data: {
+              farmId: animal.farmId,
+              animalId: animal.id,
+              collectionCode: generateCode('COL'),
+              productType,
+              quantity,
+              collectionDate: collectedAt,
+              date: collectedAt,
+              collectionCenter: dto.collectionCenter || batch.collectionCenter || null,
+              batchId: generateCode(batch.batchCode),
+              collectionBatchId: batch.id,
+            },
+          }),
+        );
+      }
+      if (batch.status === 'CREATED') {
+        await tx.collectionBatch.update({ where: { id: batch.id }, data: { status: 'COLLECTED' } });
+      }
+      return { batch, created };
+    });
+
+    if (!existingBatch) {
+      await this.audit.record(actor, {
+        action: 'BATCH_CREATED',
+        entity: 'COLLECTION_BATCH',
+        entityId: batch.id,
+        newValue: { batchCode: batch.batchCode, productType, collectionCenter: batch.collectionCenter },
+      });
+    }
+    for (const c of created) {
+      await this.audit.record(actor, {
+        action: 'PRODUCT_COLLECTED',
+        entity: 'MILK_COLLECTION',
+        entityId: c.id,
+        newValue: { animalId: c.animalId, farmId: c.farmId, productType, quantity: c.quantity, lotId: c.batchId, batchCode: batch.batchCode },
+      });
+    }
+    return { batchId: batch.id, batchCode: batch.batchCode, count: created.length, collections: created };
   }
 
   /** Only descriptive fields can change; provenance (animal, farm, lot, product) is fixed once recorded. */

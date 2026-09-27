@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import Modal from '@/components/Modal';
+import MedicineSelect from '@/components/MedicineSelect';
 import Link from 'next/link';
 import { 
   ChevronRight, ArrowRight, Package, AlertTriangle, Clock, Plus, 
@@ -28,15 +29,18 @@ export default function VetInventoryPage() {
   const [supplier, setSupplier] = useState('');
   const [cost, setCost] = useState('25');
   const [storageLocation, setStorageLocation] = useState('Cabinet A');
+  const [medicines, setMedicines] = useState<any[]>([]);
 
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const [inventoryData, alerts] = await Promise.all([
+      const [inventoryData, alerts, catalogue] = await Promise.all([
         apiFetch('/inventory'),
-        apiFetch('/inventory/alerts').catch(() => null)
+        apiFetch('/inventory/alerts').catch(() => null),
+        apiFetch('/medicines').catch(() => []),
       ]);
       setItems(Array.isArray(inventoryData) ? inventoryData : []);
+      setMedicines(Array.isArray(catalogue) ? catalogue : []);
       if (alerts) setAlertsData(alerts);
     } catch (err: any) {
       // Never show a fabricated stock list for an official pharmacy register.
@@ -186,7 +190,7 @@ export default function VetInventoryPage() {
             onClick={() => handleOpenModal()}
           >
             <Plus size={18} />
-            Add Medicine
+            Add New Stock
           </button>
         </div>
       </div>
@@ -389,23 +393,11 @@ export default function VetInventoryPage() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editItem ? 'Edit Medicine' : 'Add New Medicine'}
+        title={editItem ? 'Edit Stock' : 'Add New Stock'}
         icon="fa-archive"
       >
         <form onSubmit={handleSaveItem} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Medicine Name
-            </label>
-            <input
-              type="text"
-              required
-              value={medicineName}
-              onChange={(e) => setMedicineName(e.target.value)}
-              placeholder="e.g. Oxytetracycline 200mg/ml"
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
+          <MedicineSelect medicines={medicines} value={medicineName} onChange={setMedicineName} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -527,7 +519,7 @@ export default function VetInventoryPage() {
               type="submit"
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              {editItem ? 'Save Changes' : 'Add Medicine'}
+              {editItem ? 'Save Changes' : 'Add Stock'}
             </button>
           </div>
         </form>

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Actor } from '../common/actor';
 import { diffFields, parseDate } from '../common/diff';
+import { MedicineService } from './medicine.service';
 
 const TEXT_FIELDS = ['medicineName', 'manufacturer', 'batchNumber', 'supplier', 'storageLocation'] as const;
 const INT_FIELDS = ['stock', 'minimumStock', 'withdrawalPeriod'] as const;
@@ -12,7 +13,18 @@ export class InventoryService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private medicines: MedicineService,
   ) {}
+
+  /** Stock of a catalogued medicine always carries the catalogue's withdrawal period. */
+  private async applyCatalogue(data: any) {
+    if (!data.medicineName) return;
+    const medicine = await this.medicines.findByName(data.medicineName);
+    if (medicine) {
+      data.medicineName = medicine.name;
+      data.withdrawalPeriod = medicine.withdrawalPeriod;
+    }
+  }
 
   async findAll() {
     return this.prisma.inventory.findMany({
@@ -63,6 +75,7 @@ export class InventoryService {
     if (!data.medicineName) throw new BadRequestException('medicineName is required');
     if (!data.batchNumber) throw new BadRequestException('batchNumber is required');
     if (!data.expiryDate) throw new BadRequestException('expiryDate is required');
+    await this.applyCatalogue(data);
 
     const item = await this.prisma.inventory.create({
       data: {
@@ -84,6 +97,7 @@ export class InventoryService {
   async update(actor: Actor, id: string, dto: any) {
     const existing = await this.findOne(id);
     const data = this.sanitize(dto);
+    await this.applyCatalogue(data);
     const updated = await this.prisma.inventory.update({ where: { id }, data });
     const diff = diffFields(existing, updated, Object.keys(data));
     if (diff.changed) {

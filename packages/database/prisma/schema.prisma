@@ -234,6 +234,20 @@ model Inventory {
   updatedAt        DateTime @updatedAt
 }
 
+/// Master list of approved medicines; stock items and treatments take their withdrawal period from here.
+model Medicine {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  activeIngredient String?
+  category         String? // ANTIBIOTIC, ANTIPARASITIC, NSAID, ...
+  dosageForm       String? // INJECTABLE, ORAL, POUR_ON, ...
+  withdrawalPeriod Int      @default(0) // days
+  notes            String?
+  status           String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 model Notification {
   id        String   @id @default(uuid())
   userId    String?

@@ -46,3 +46,91 @@ describe('MilkCollectionService.create', () => {
     expect(prisma.collectionBatch.update).toHaveBeenCalledWith({ where: { id: 'b1' }, data: { status: 'COLLECTED' } });
   });
 });
+
+describe('MilkCollectionService.createMany', () => {
+  function bulkSetup(animals: Record<string, any>, blocked: string[] = []) {
+    const tx: any = {
+      collectionBatch: {
+        create: jest.fn(async ({ data }: any) => ({ id: 'nb', ...data })),
+        update: jest.fn(),
+      },
+      milkCollection: { create: jest.fn(async ({ data }: any) => ({ id: `c-${data.animalId}`, ...data })) },
+    };
+    const prisma: any = {
+      animal: {
+        findUnique: jest.fn(async ({ where }: any) => animals[where.id] ?? null),
+        findMany: jest.fn(async () => Object.values(animals)),
+      },
+      collectionBatch: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([{ batchCode: 'BATCH-0007' }, { batchCode: 'BATCH-OLD' }]) },
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const audit: any = { record: jest.fn() };
+    const compliance: any = {
+      checkClearance: jest.fn(async (id: string) =>
+        blocked.includes(id)
+          ? { cleared: false, status: 'RESTRICTED', reason: 'Active withdrawal', restrictionEnd: null }
+          : { cleared: true, status: 'CLEARED', reason: null, restrictionEnd: null }),
+    };
+    const notifications: any = { notify: jest.fn() };
+    return { tx, prisma, audit, service: new MilkCollectionService(prisma, audit, compliance, notifications) };
+  }
+
+  const herd = { a1: cow, a2: { ...cow, id: 'a2', name: 'Lakshmi', tagNumber: 'T2', farmId: 'f2' } };
+
+  it('adds every selected animal to one existing open batch', async () => {
+    const { service, prisma, tx } = bulkSetup(herd);
+    prisma.collectionBatch.findFirst.mockResolvedValue({ id: 'b1', batchCode: 'BATCH-X', status: 'CREATED', productType: 'MILK', collectionCenter: 'Centre' });
+    const res = await service.createMany(officer, { batchId: 'BATCH-X', animals: [{ animalId: 'a1', quantity: 4 }, { animalId: 'a2' }] });
+    expect(res).toMatchObject({ batchCode: 'BATCH-X', count: 2 });
+    const rows = tx.milkCollection.create.mock.calls.map((c: any) => c[0].data);
+    expect(rows.map((r: any) => [r.animalId, r.farmId, r.collectionBatchId, r.quantity])).toEqual([['a1', 'f1', 'b1', 4], ['a2', 'f2', 'b1', null]]);
+    expect(new Set(rows.map((r: any) => r.batchId)).size).toBe(2);
+    expect(tx.collectionBatch.create).not.toHaveBeenCalled();
+    expect(tx.collectionBatch.update).toHaveBeenCalledWith({ where: { id: 'b1' }, data: { status: 'COLLECTED' } });
+  });
+
+  it('opens a new batch when none is given', async () => {
+    const { service, tx } = bulkSetup(herd);
+    const res = await service.createMany(officer, { animals: [{ animalId: 'a1' }, { animalId: 'a2' }] });
+    expect(tx.collectionBatch.create).toHaveBeenCalledTimes(1);
+    expect(res.batchCode).toBe('BATCH-0008');
+    expect(res.count).toBe(2);
+  });
+
+  it('saves nothing when any selected animal is restricted', async () => {
+    const { service, tx } = bulkSetup(herd, ['a2']);
+    await expect(service.createMany(officer, { animals: [{ animalId: 'a1' }, { animalId: 'a2' }] })).rejects.toThrow(/Lakshmi \(T2\)/);
+    expect(tx.milkCollection.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty selection and duplicates', async () => {
+    const { service } = bulkSetup(herd);
+    await expect(service.createMany(officer, { animals: [] })).rejects.toThrow(/at least one/);
+    await expect(service.createMany(officer, { animals: [{ animalId: 'a1' }, { animalId: 'a1' }] })).rejects.toThrow(/more than once/);
+  });
+});
+
+describe('MilkCollectionService product eligibility', () => {
+  it('only accepts species that produce the product', async () => {
+    await expect(setup({ ...cow, species: 'POULTRY' }).service.create(officer, { animalId: 'a1', productType: 'MILK' })).rejects.toThrow(/Milk cannot be collected from poultry/);
+    await expect(setup({ ...cow, species: 'CATTLE' }).service.create(officer, { animalId: 'a1', productType: 'EGGS' })).rejects.toThrow(/Eggs cannot be collected from cattle/);
+    await expect(setup({ ...cow, species: 'PIG', gender: 'MALE' }).service.create(officer, { animalId: 'a1', productType: 'MEAT' })).resolves.toBeDefined();
+  });
+
+  it('opens a batch under an officer-entered code', async () => {
+    const tx: any = {
+      collectionBatch: { create: jest.fn(async ({ data }: any) => ({ id: 'nb', ...data })), update: jest.fn() },
+      milkCollection: { create: jest.fn(async ({ data }: any) => ({ id: 'c', ...data })) },
+    };
+    const prisma: any = {
+      animal: { findUnique: jest.fn().mockResolvedValue(cow), findMany: jest.fn().mockResolvedValue([cow]) },
+      collectionBatch: { findFirst: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const compliance: any = { checkClearance: jest.fn().mockResolvedValue({ cleared: true, status: 'CLEARED' }) };
+    const service = new MilkCollectionService(prisma, { record: jest.fn() } as any, compliance, { notify: jest.fn() } as any);
+    const res = await service.createMany(officer, { batchId: 'vbmc-0042', animals: [{ animalId: 'a1' }] });
+    expect(res.batchCode).toBe('VBMC-0042');
+    await expect(service.createMany(officer, { batchId: 'bad code!', animals: [{ animalId: 'a1' }] })).rejects.toThrow(/Batch ID may only/);
+  });
+});

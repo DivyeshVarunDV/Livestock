@@ -128,8 +128,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   TESTER: [
     P.FARM_READ, P.ANIMAL_READ,
     P.MRL_RULE_READ, P.WITHDRAWAL_READ,
-    // Testers sample and test; recording collections is done by collection-centre officers.
-    P.COLLECTION_READ,
+    // Testers collect products at the point of origin and test them; deleting collections stays with admins.
+    P.COLLECTION_READ, P.COLLECTION_WRITE,
     P.BATCH_READ, P.BATCH_WRITE,
     P.LAB_TEST_READ, P.LAB_TEST_WRITE,
     P.CLEARANCE_READ, P.CLEARANCE_REFRESH,

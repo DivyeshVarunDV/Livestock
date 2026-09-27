@@ -23,6 +23,28 @@ export const BATCH_TRANSITIONS = {
 
 const OPEN_VIOLATION_STATUSES = ['PENDING_INVESTIGATION', 'UNDER_REVIEW', 'CONFIRMED'];
 
+export const DEFAULT_BATCH_PREFIX = 'BATCH-';
+
+/** Validates an officer-entered batch code (letters, digits, - _ / only). */
+export function normalizeBatchCode(value: unknown): string {
+  const code = String(value ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_/-]{0,39}$/.test(code)) {
+    throw new BadRequestException('Batch ID may only contain letters, digits, "-", "_" or "/" (max 40 characters).');
+  }
+  return code;
+}
+
+/** Next sequential code for a prefix, e.g. BATCH- -> BATCH-0001, BATCH-0002 ... */
+export async function nextBatchCode(prisma: PrismaService, prefix?: string) {
+  const p = String(prefix ?? '').trim().toUpperCase() || DEFAULT_BATCH_PREFIX;
+  const existing = await prisma.collectionBatch.findMany({ where: { batchCode: { startsWith: p } }, select: { batchCode: true } });
+  const max = existing.reduce((m, { batchCode }) => {
+    const rest = batchCode.slice(p.length);
+    return /^\d+$/.test(rest) ? Math.max(m, Number(rest)) : m;
+  }, 0);
+  return { prefix: p, next: max + 1, batchCode: `${p}${String(max + 1).padStart(4, '0')}` };
+}
+
 export interface BatchScope {
   aggregate: CollectionBatch | null;
   collections: MilkCollection[];
@@ -95,10 +117,17 @@ export class CollectionBatchService {
     return record;
   }
 
+  nextCode(prefix?: string) {
+    return nextBatchCode(this.prisma, prefix);
+  }
+
   async create(actor: Actor, dto: any) {
     const productType = String(dto?.productType || 'MILK').toUpperCase();
     const collectionDate = parseDate(dto?.collectionDate, 'collectionDate') ?? new Date();
-    const batchCode = generateCode('BATCH', collectionDate);
+    const batchCode = dto?.batchCode ? normalizeBatchCode(dto.batchCode) : (await this.nextCode()).batchCode;
+    if (await this.prisma.collectionBatch.findUnique({ where: { batchCode } })) {
+      throw new ConflictException(`Batch ${batchCode} already exists.`);
+    }
 
     const newRecord = await this.prisma.collectionBatch.create({
       data: {

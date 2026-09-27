@@ -8,7 +8,6 @@ import {
   PawPrint,
   Syringe,
   AlertTriangle,
-  FileText,
   Activity,
   Search,
   User,
@@ -19,7 +18,6 @@ import {
   XCircle,
   Clock,
   ArrowRightLeft,
-  Pill,
   Plus,
   ArrowRight,
   ShieldCheck,
@@ -35,11 +33,9 @@ export default function VetFarmerCentricDashboard() {
   const [selectedFarm, setSelectedFarm] = useState<any>(null);
   const [farmerAnimals, setFarmerAnimals] = useState<any[]>([]);
   const [farmerTreatments, setFarmerTreatments] = useState<any[]>([]);
-  const [farmerPrescriptions, setFarmerPrescriptions] = useState<any[]>([]);
   const [farmerTransfers, setFarmerTransfers] = useState<any[]>([]);
-  const [farmerDispensings, setFarmerDispensings] = useState<any[]>([]);
   const [farmerLoading, setFarmerLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ANIMALS' | 'WITHDRAWALS' | 'PRESCRIPTIONS' | 'TREATMENTS' | 'TRANSFERS'>('ANIMALS');
+  const [activeTab, setActiveTab] = useState<'ANIMALS' | 'WITHDRAWALS' | 'TREATMENTS' | 'TRANSFERS'>('ANIMALS');
   const [farmerSearch, setFarmerSearch] = useState('');
 
   // Load initial list of all farms
@@ -77,12 +73,10 @@ export default function VetFarmerCentricDashboard() {
       setSelectedFarm(targetFarm || null);
 
       if (targetFarm) {
-        const [animalsRes, treatmentsRes, prescriptionsRes, transfersRes, dispensingRes] = await Promise.all([
+        const [animalsRes, treatmentsRes, transfersRes] = await Promise.all([
           apiFetch(`/animals?farmId=${targetFarm.id}`).catch(() => []),
           apiFetch('/treatments').catch(() => []),
-          apiFetch('/prescriptions').catch(() => []),
           apiFetch('/ownership-transfers').catch(() => []),
-          apiFetch('/medicine-dispensing').catch(() => []),
         ]);
 
         const animalsList = Array.isArray(animalsRes) ? animalsRes : [];
@@ -90,13 +84,11 @@ export default function VetFarmerCentricDashboard() {
 
         setFarmerAnimals(animalsList);
         setFarmerTreatments((Array.isArray(treatmentsRes) ? treatmentsRes : []).filter((t: any) => animalIds.has(t.animalId)));
-        setFarmerPrescriptions((Array.isArray(prescriptionsRes) ? prescriptionsRes : []).filter((p: any) => animalIds.has(p.animalId)));
         setFarmerTransfers(
           (Array.isArray(transfersRes) ? transfersRes : []).filter(
             (tr: any) => tr.fromFarmId === targetFarm.id || tr.toFarmId === targetFarm.id || animalIds.has(tr.animalId)
           )
         );
-        setFarmerDispensings((Array.isArray(dispensingRes) ? dispensingRes : []).filter((d: any) => animalIds.has(d.animalId)));
       }
     } catch (err) {
       console.error('Error fetching farmer data:', err);
@@ -151,18 +143,6 @@ export default function VetFarmerCentricDashboard() {
               className="inline-flex items-center gap-1.5 bg-[#064E3B] hover:bg-[#065F46] text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
             >
               <Syringe size={14} /> Record Treatment
-            </Link>
-            <Link
-              href="/prescriptions/new"
-              className="inline-flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
-            >
-              <FileText size={14} /> New Prescription
-            </Link>
-            <Link
-              href="/veterinarian/dispensing"
-              className="inline-flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"
-            >
-              <Pill size={14} /> Dispense Medicine
             </Link>
             <Link
               href="/transfers"
@@ -251,12 +231,6 @@ export default function VetFarmerCentricDashboard() {
 
             <div className="flex flex-wrap gap-2 shrink-0">
               <Link
-                href={`/prescriptions/new?farmerId=${selectedFarm.farmerId || selectedFarm.id}`}
-                className="bg-white text-[#064E3B] hover:bg-emerald-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-              >
-                <FileText size={14} /> Prescribe for this Farmer
-              </Link>
-              <Link
                 href={`/transfers`}
                 className="bg-emerald-900/60 hover:bg-emerald-900 text-white border border-emerald-400/30 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
               >
@@ -308,16 +282,6 @@ export default function VetFarmerCentricDashboard() {
               >
                 <AlertTriangle size={14} className={activeWithdrawals.length > 0 ? 'text-red-600' : ''} />
                 Withdrawal Restrictions ({activeWithdrawals.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('PRESCRIPTIONS')}
-                className={`px-5 py-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                  activeTab === 'PRESCRIPTIONS'
-                    ? 'border-[#064E3B] text-[#064E3B] bg-white'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <FileText size={14} /> Digital Prescriptions ({farmerPrescriptions.length})
               </button>
               <button
                 onClick={() => setActiveTab('TREATMENTS')}
@@ -406,13 +370,6 @@ export default function VetFarmerCentricDashboard() {
                                 Treat
                               </Link>
                               <Link
-                                href={`/prescriptions/new?animalId=${animal.id}`}
-                                title="Prescribe Medicine"
-                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded text-xs font-bold transition-colors"
-                              >
-                                Prescribe
-                              </Link>
-                              <Link
                                 href={`/animals/${animal.id}`}
                                 title="View Dossier"
                                 className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded text-xs font-bold transition-colors"
@@ -483,50 +440,7 @@ export default function VetFarmerCentricDashboard() {
               </div>
             )}
 
-            {/* TAB CONTENT 3: Digital Prescriptions */}
-            {activeTab === 'PRESCRIPTIONS' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider">
-                    <tr>
-                      <th className="px-5 py-3.5">Prescription Code</th>
-                      <th className="px-5 py-3.5">Animal</th>
-                      <th className="px-5 py-3.5">Medicine</th>
-                      <th className="px-5 py-3.5">Dosage / Duration</th>
-                      <th className="px-5 py-3.5">Veterinarian</th>
-                      <th className="px-5 py-3.5">Date</th>
-                      <th className="px-5 py-3.5 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {farmerPrescriptions.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-5 py-4 font-mono font-bold text-gray-900">{p.prescriptionCode || p.id.slice(0, 8)}</td>
-                        <td className="px-5 py-4 font-semibold text-emerald-800">{p.animal?.animalCode || p.animal?.tagNumber || p.animalId}</td>
-                        <td className="px-5 py-4 font-medium text-gray-900">{p.medicine}</td>
-                        <td className="px-5 py-4 text-xs text-gray-600">{p.dosage} ({p.duration} days)</td>
-                        <td className="px-5 py-4 text-xs text-gray-700">{p.veterinarianName}</td>
-                        <td className="px-5 py-4 text-xs text-gray-500">{new Date(p.prescriptionDate || p.createdAt).toLocaleDateString()}</td>
-                        <td className="px-5 py-4 text-right">
-                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                            {p.status || 'ACTIVE'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {farmerPrescriptions.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-5 py-10 text-center text-gray-500">
-                          No prescriptions issued for this farmer's animals yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* TAB CONTENT 4: Treatments & AMU */}
+            {/* TAB CONTENT 3: Treatments & AMU */}
             {activeTab === 'TREATMENTS' && (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-gray-600">
@@ -618,7 +532,7 @@ export default function VetFarmerCentricDashboard() {
             <Tractor size={20} className="text-emerald-700" /> Select a Registered Farmer to Begin Consultation
           </h2>
           <p className="text-xs text-gray-500">
-            Click on any farmer to open their specific livestock registry, health cards, active withdrawal timers, and prescription history.
+            Click on any farmer to open their specific livestock registry, health cards, active withdrawal timers, and treatment history.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">

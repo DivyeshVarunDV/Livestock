@@ -27,6 +27,12 @@ export class MilkCollectionController {
     return this.service.create(actor, dto);
   }
 
+  @Post('bulk')
+  @RequirePermissions(Permission.COLLECTION_WRITE)
+  async createMany(@CurrentUser() actor: Actor, @Body() dto: any) {
+    return this.service.createMany(actor, dto);
+  }
+
   @Put(':id')
   @RequirePermissions(Permission.COLLECTION_WRITE)
   async update(@CurrentUser() actor: Actor, @Param('id') id: string, @Body() dto: any) {

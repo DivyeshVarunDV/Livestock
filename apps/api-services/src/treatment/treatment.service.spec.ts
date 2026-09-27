@@ -4,7 +4,7 @@ import { TreatmentService, defaultProductTypes, ruleMatchesDrug } from './treatm
 const vet = { id: 'vet-1', email: 'vet@x.gov', name: 'Dr. Real Vet', role: 'VETERINARIAN', ip: null };
 const DAY = 24 * 60 * 60 * 1000;
 
-function setup(overrides: { animal?: any; rules?: any[]; prescription?: any; inventory?: any; decrementCount?: number } = {}) {
+function setup(overrides: { animal?: any; rules?: any[]; prescription?: any; inventory?: any; decrementCount?: number; medicines?: any[] } = {}) {
   const tx: any = {
     inventory: {
       updateMany: jest.fn().mockResolvedValue({ count: overrides.decrementCount ?? 1 }),
@@ -21,6 +21,7 @@ function setup(overrides: { animal?: any; rules?: any[]; prescription?: any; inv
       ),
     },
     mrlRule: { findMany: jest.fn().mockResolvedValue(overrides.rules ?? []) },
+    medicine: { findMany: jest.fn().mockResolvedValue(overrides.medicines ?? []) },
     prescription: { findUnique: jest.fn().mockResolvedValue(overrides.prescription ?? null) },
     inventory: { findUnique: jest.fn().mockResolvedValue(overrides.inventory ?? null) },
     $transaction: jest.fn(async (fn: any) => fn(tx)),
@@ -60,6 +61,13 @@ describe('TreatmentService.create', () => {
     );
     // One withdrawal record per restricted product (milk AND meat).
     expect(tx.withdrawalRecord.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies the medicine list withdrawal period as a minimum', async () => {
+    const { service } = setup({ medicines: [{ name: 'Ivermectin 1% Injectable', withdrawalPeriod: 35, status: 'ACTIVE' }] });
+    const result = await service.create(vet, { animalId: 'a-1', drugName: 'ivermectin 1% injectable', dosage: '5ml', withdrawalPeriod: 7 } as any);
+    expect(result.withdrawalPeriod).toBe(35);
+    expect(result.complianceNotes[0]).toMatch(/medicine list/);
   });
 
   it('records antimicrobial use when flagged', async () => {

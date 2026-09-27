@@ -3,22 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import Modal from '@/components/Modal';
+import MedicineSelect from '@/components/MedicineSelect';
 import Link from 'next/link';
 import { ChevronRight, ArrowRight } from 'lucide-react';
-
-const STANDARD_VET_DRUGS = [
-  { drugName: 'Oxytetracycline 200mg/ml', withdrawalPeriod: 28, mrlLimit: 'Standard' },
-  { drugName: 'Penicillin G Procaine', withdrawalPeriod: 10, mrlLimit: 'Standard' },
-  { drugName: 'Ivermectin 1% Injectable', withdrawalPeriod: 35, mrlLimit: 'Standard' },
-  { drugName: 'Enrofloxacin 10%', withdrawalPeriod: 28, mrlLimit: 'Standard' },
-  { drugName: 'Amoxicillin LA 150mg/ml', withdrawalPeriod: 21, mrlLimit: 'Standard' },
-  { drugName: 'Flunixin Meglumine', withdrawalPeriod: 4, mrlLimit: 'Standard' },
-  { drugName: 'Meloxicam 20mg/ml', withdrawalPeriod: 15, mrlLimit: 'Standard' },
-  { drugName: 'Albendazole 10%', withdrawalPeriod: 27, mrlLimit: 'Standard' },
-  { drugName: 'Doramectin 1%', withdrawalPeriod: 35, mrlLimit: 'Standard' },
-  { drugName: 'Ceftiofur Sodium', withdrawalPeriod: 4, mrlLimit: 'Standard' },
-  { drugName: 'Tylosin 200mg/ml', withdrawalPeriod: 21, mrlLimit: 'Standard' },
-];
 
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -38,27 +25,18 @@ export default function InventoryPage() {
   const [supplier, setSupplier] = useState('');
   const [cost, setCost] = useState('25');
   const [storageLocation, setStorageLocation] = useState('Cabinet A');
-  const [withdrawalPeriod, setWithdrawalPeriod] = useState('0');
-  const [drugRefs, setDrugRefs] = useState<any[]>(STANDARD_VET_DRUGS);
+  const [medicines, setMedicines] = useState<any[]>([]);
 
 
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const [data, rules] = await Promise.all([
+      const [data, catalogue] = await Promise.all([
         apiFetch('/inventory'),
-        apiFetch('/treatments/rules').catch(() => [])
+        apiFetch('/medicines').catch(() => []),
       ]);
       setItems(Array.isArray(data) ? data : []);
-      
-      // Merge backend rules with standard defaults
-      if (Array.isArray(rules)) {
-        const merged = [...rules, ...STANDARD_VET_DRUGS];
-        const uniqueDrugs = Array.from(new Set(merged.map(r => r.drugName)));
-        setDrugRefs(uniqueDrugs.map(name => {
-          return merged.find(r => r.drugName === name);
-        }));
-      }
+      setMedicines(Array.isArray(catalogue) ? catalogue : []);
     } catch (err: any) {
       // Never show a fabricated stock list for an official pharmacy register.
       setItems([]);
@@ -84,7 +62,6 @@ export default function InventoryPage() {
       setSupplier(item.supplier || '');
       setCost(String(item.cost || '0'));
       setStorageLocation(item.storageLocation || '');
-      setWithdrawalPeriod(String(item.withdrawalPeriod || '0'));
     } else {
       setEditItem(null);
       setMedicineName('');
@@ -96,7 +73,6 @@ export default function InventoryPage() {
       setSupplier('AgriShield Global Supply');
       setCost('30');
       setStorageLocation('Main Pharmacy Room');
-      setWithdrawalPeriod('0');
     }
     setModalOpen(true);
   };
@@ -113,7 +89,6 @@ export default function InventoryPage() {
       supplier,
       cost: Number(cost),
       storageLocation,
-      withdrawalPeriod: Number(withdrawalPeriod),
     };
     try {
       if (editItem) {
@@ -193,7 +168,7 @@ export default function InventoryPage() {
             onClick={() => handleOpenModal()}
           >
             <i className="fa fa-plus"></i>
-            Add New Medicine
+            Add New Stock
           </button>
         </div>
       </div>
@@ -378,37 +353,11 @@ export default function InventoryPage() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editItem ? 'Edit Medicine SKU' : 'Add New Medicine SKU'}
+        title={editItem ? 'Edit Stock' : 'Add New Stock'}
         icon="fa-archive"
       >
         <form onSubmit={handleSaveItem} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Medicine / Drug Name
-              </label>
-              <input autoComplete="off"
-                list="drug-reference-list"
-                type="text"
-                required
-                value={medicineName}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setMedicineName(val);
-                  // Auto-fill withdrawal period if exact match is selected
-                  const selected = drugRefs.find(r => r.drugName === val);
-                  if (selected && selected.withdrawalPeriod) {
-                    setWithdrawalPeriod(String(selected.withdrawalPeriod));
-                  }
-                }}
-                placeholder="e.g. Oxytetracycline 200mg/ml"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <datalist id="drug-reference-list">
-                {drugRefs.map(drug => (
-                  <option key={drug.drugName} value={drug.drugName} />
-                ))}
-              </datalist>
-            </div>
+            <MedicineSelect medicines={medicines} value={medicineName} onChange={setMedicineName} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -518,20 +467,6 @@ export default function InventoryPage() {
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Withdrawal Period (Days)
-              </label>
-              <input autoComplete="off"
-                type="number"
-                min="0"
-                required
-                value={withdrawalPeriod}
-                onChange={(e) => setWithdrawalPeriod(e.target.value)}
-                placeholder="e.g. 14"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-4">
@@ -547,7 +482,7 @@ export default function InventoryPage() {
               className="btn-primary flex items-center gap-2"
             >
               <i className="fa fa-save"></i>
-              {editItem ? 'Save Changes' : 'Add to Catalog'}
+              {editItem ? 'Save Changes' : 'Add Stock'}
             </button>
           </div>
         </form>

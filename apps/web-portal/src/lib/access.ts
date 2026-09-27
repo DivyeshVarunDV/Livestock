@@ -11,12 +11,12 @@ const ROLE_ROUTES: Record<Role, string[]> = {
   admin: [
     '/admin', '/dashboard', '/farms', '/animals', '/livestock', '/treatments', '/withdrawal', '/mrl', '/alerts', '/amu',
     '/compliance', '/health', '/health-records', '/inventory', '/prescriptions', '/transfers', '/reports', '/audit',
-    '/users', '/settings', '/violations', '/milk-collection', '/milk-testing', '/maps', '/lab',
+    '/users', '/settings', '/violations', '/milk-collection', '/milk-testing', '/maps', '/lab', '/medicines',
   ],
   veterinarian: [
-    '/veterinarian', '/dashboard', '/farms', '/animals', '/livestock', '/treatments', '/prescriptions', '/withdrawal',
+    '/veterinarian', '/dashboard', '/farms', '/animals', '/livestock', '/treatments', '/withdrawal',
     '/mrl', '/alerts', '/amu', '/compliance', '/health', '/health-records', '/inventory', '/transfers', '/reports',
-    '/violations', '/maps',
+    '/violations', '/maps', '/medicines',
   ],
   tester: ['/tester', '/dashboard', '/farms', '/animals', '/milk-collection', '/milk-testing', '/violations', '/reports'],
   farmer: ['/farms', '/animals', '/livestock'],
@@ -27,6 +27,7 @@ const BLOCKED: Partial<Record<Role, string[]>> = {
   tester: ['/farms/new', '/animals/new'],
   farmer: ['/farms/new', '/animals/new'],
   admin: ['/treatments/new', '/prescriptions/new'],
+  veterinarian: ['/veterinarian/prescriptions', '/veterinarian/dispensing'],
 };
 
 export function normalizeRole(role: unknown): Role | null {
